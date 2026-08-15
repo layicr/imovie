@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-inter: "Inter";
+  --font-bebas: "Bebas Neue";
+}
+
+html,
+body {
+  background-color: #141414;
+  color: #ffffff;
+}
+
+body {
+  font-family: var(--font-inter), "Noto Sans SC", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 大标题字体：窄体大写，呼应 Netflix 标题质感 */
+.font-display {
+  font-family: var(--font-bebas), "Bebas Neue", "Noto Sans SC", sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* 隐藏横向滚动条但保留滚动能力（内容行 / 搜索结果墙） */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 细滚动条（详情页元数据等纵向区域） */
+.thin-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: #2a2a2e;
+  border-radius: 3px;
+}
