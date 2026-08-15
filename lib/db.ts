@@ -8,6 +8,9 @@ const DB_URL = process.env.DATABASE_URL || "file:./data/local.db";
 const AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN; // Turso 远程实例的鉴权令牌（本地文件模式留空）
 
 let ready: Promise<Client> | null = null;
+// 建表（applySchema）只执行一次的 Promise 缓存，与连接 Promise 解耦：
+// 即使 connect 失败重置了 ready，已成功的建表也不会重跑；且并发请求只建一次表。
+let schemaReady: Promise<void> | null = null;
 
 // 首次连接时根据 schema.sql 自动建表，保证「拉下来即可跑」。
 async function connect(): Promise<Client> {
@@ -22,11 +25,12 @@ async function connect(): Promise<Client> {
   }
 
   const client = createClient({ url, authToken: AUTH_TOKEN });
-  await applySchema(client);
+  await getSchemaReady(client);
   return client;
 }
 
 // 读取 schema.sql 并按语句顺序执行建表（幂等，CREATE TABLE IF NOT EXISTS）。
+// 执行结果由 schemaReady 缓存，保证整个进程生命周期内仅跑一次。
 async function applySchema(client: Client): Promise<void> {
   const schema = fs.readFileSync(path.join(process.cwd(), "data", "schema.sql"), "utf-8");
   const statements = schema
@@ -36,6 +40,16 @@ async function applySchema(client: Client): Promise<void> {
   for (const st of statements) {
     await client.execute(st + ";");
   }
+}
+
+function getSchemaReady(client: Client): Promise<void> {
+  if (!schemaReady) {
+    schemaReady = applySchema(client).catch((err) => {
+      schemaReady = null;
+      throw err;
+    });
+  }
+  return schemaReady;
 }
 
 // 返回已初始化的数据库连接（仅初始化一次，缓存 Promise 防止并发重复建表）。

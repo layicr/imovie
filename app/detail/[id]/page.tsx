@@ -71,6 +71,9 @@ export default function Detail() {
   const { t } = useLanguage();
   const params = useParams();
   const tmdb_id = Number(params.id);
+  if (!Number.isInteger(tmdb_id)) {
+    return <div className="py-20 text-center text-subtle">{t("detail.notFound")}</div>;
+  }
 
   const [data, setData] = useState<{ item: Item; record: RecordRow | null } | null>(null);
   const [loading, setLoading] = useState(true);

@@ -5,10 +5,9 @@
 --   1. 影片「元数据」与用户「观影记录」两张表分离：
 --      - imovie_items   存影片的客观信息（来自 TMDb，按 tmdb_id 去重缓存，多人共享一份）；
 --      - imovie_records 存「我」对影片的主观状态（想看/已看、评分、标签），与具体用户绑定。
---   2. 豆瓣导入时不重复拉取 TMDb 已有元数据，仅在 imovie_records 补入豆瓣评分与状态。
---   3. 所有时间字段用 TEXT 存「北京时间」（datetime('now','+8 hours')，即 UTC+8 墙钟时间），
---      与站点用户所在时区一致，便于展示与按年分组。格式统一为 'YYYY-MM-DD HH:MM:SS'。
---   4. 海报只存 TMDb 的相对路径（不含域名），展示时拼接 image.tmdb.org 前缀。
+--   2. 所有时间字段用 TEXT 存「本地时间」（datetime('now')），格式统一为 'YYYY-MM-DD HH:MM:SS'。
+--      写入端由 lib/time.ts 的 beijingNow() 生成本地 naive 字符串，查询侧不再做时区偏移，便于展示与按年分组。
+--   3. 海报只存 TMDb 的相对路径（不含域名），展示时拼接 image.tmdb.org 前缀。
 -- ============================================================
 
 
@@ -38,7 +37,7 @@ CREATE TABLE IF NOT EXISTS imovie_items (
   douban_id      TEXT,                            -- 豆瓣编号（如 1292052），外链用（导入时带入，页面不展示）
   douban_rating  REAL,                            -- 豆瓣评分（仅豆瓣导入时带入，单独展示，不混入站内评分）
   tmdb_rating    REAL,                            -- TMDb 评分（站内展示的专业评分，0–10）
-  updated_at     TEXT DEFAULT (datetime('now', '+8 hours'))   -- 元数据最后更新时间（北京时间），便于识别过期缓存
+  updated_at     TEXT DEFAULT (datetime('now'))   -- 元数据最后更新时间，便于识别过期缓存
 );
 
 
@@ -55,7 +54,7 @@ CREATE TABLE IF NOT EXISTS imovie_records (
   rating      INTEGER,                            -- 评分（仅 watched 时填，1–10；plan 时为 NULL）
   tags        TEXT,                               -- 自定义标签，逗号分隔（用户自由打标，用于检索）
   watched_at  TEXT,                               -- 实际观看完成时间（watched 状态记录，可选）
-  created_at  TEXT DEFAULT (datetime('now', '+8 hours')),     -- 记录创建时间（加入清单的时间，北京时间）
+  created_at  TEXT DEFAULT (datetime('now')),     -- 记录创建时间（加入清单的时间）
   UNIQUE(user_id, tmdb_id)                        -- 唯一约束：同一用户同一影片不可重复添加
 );
 
@@ -69,3 +68,5 @@ CREATE INDEX IF NOT EXISTS idx_imovie_records_status ON imovie_records(status);
 CREATE INDEX IF NOT EXISTS idx_imovie_records_user   ON imovie_records(user_id);
 -- 按年份筛选与报表分组（imovie_items.year 常用于「年度报告」海报墙）
 CREATE INDEX IF NOT EXISTS idx_imovie_items_year     ON imovie_items(year);
+-- 按观看时间聚合与排序（年度报告 GROUP BY strftime('%Y', watched_at) 直接受益）
+CREATE INDEX IF NOT EXISTS idx_imovie_records_watched ON imovie_records(watched_at);

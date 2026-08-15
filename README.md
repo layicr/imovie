@@ -1,4 +1,4 @@
-# iMOVIE · 个人观影记录展示站
+# iMOVIE · 只为记录我与电影的全部时光
 
 English version: [README.en.md](./README.en.md)
 
@@ -50,9 +50,11 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 | 看板首页 | `/`              | Featured 大图 + 想看 / 已看两行横向内容       |
 | 详情     | `/detail/[id]`   | 严格元数据排版（导演/演员/评分/别名等）       |
 | 搜索     | `/search`        | 全局关键词 + 年份/类型/国家多维筛选 + 热门标签 |
-| 各年报表 | `/report`        | 总览三卡 + 按年海报墙 + 年份小计              |
+| 各年报表 | `/report`        | 总览三卡 + 按年海报墙 + 年份小计 + 按月下钻明细 |
 
 > 本仓库为**展示站**：无「添加影片」「豆瓣导入」「状态切换」「评分/标签编辑」等写入功能，所有数据由 `npm run db:seed` 一次性灌入。
+
+报表下钻「观影明细」按**月份降序**（最新月份在前），影片在月份内按观看时间降序排列；年月文案随界面语言切换（中文 `2026年1月` / 英文 `Jan, 2026`）。
 
 ## 四、常用脚本
 
@@ -70,20 +72,17 @@ npm run db:seed   # 建表并写入示例数据（一次性灌库）
 app/           页面与 API 路由（App Router）
   api/         records（GET 列表 / detail/[tmdb_id] 详情）、stats（GET 年报）
 components/     Nav / PosterCard / MovieRow / Analytics 等
-lib/           db / queries（纯只读）/ config / poster / types / time / validate / i18n / analytics
+lib/           db / queries（纯只读）/ config / poster / types / validate / i18n / analytics
 data/          schema.sql（数据库结构）
-doc/           全部文档
 scripts/       seed.ts（一次性灌库脚本，内含写库函数，不污染应用层）
 middleware.ts  可选 HTTP Basic Auth
 ```
 
 ## 六、数据访问与安全
 
-- **连接与建表**：`lib/db.ts` 单例连接 + 按 `schema.sql` 幂等建表；首次连接失败可自动重试。
-- **查询层**：`lib/queries.ts` 仅含 5 个 `SELECT` 函数（列表/筛选/搜索、侧栏维度、详情、年报总览、年报分组），全部使用参数化占位符，动态排序走白名单枚举，**零 SQL 注入**。
+- **连接与建表**：`lib/db.ts` 单例连接；首次连接按 `schema.sql` 幂等建表，建表结果用模块级 `schemaReady` Promise 缓存，整个进程只执行一次，且失败可自动重试。
+- **查询层**：`lib/queries.ts` 仅含 `SELECT` 函数（列表/筛选/搜索、侧栏维度、详情、年报总览、年报分组），全部使用参数化占位符，动态排序走白名单枚举，**零 SQL 注入**。
 - **写库隔离**：写入逻辑 `ensureItem` / `upsertRecord` 仅定义在 `scripts/seed.ts` 内，不导入到应用层，保证线上运行态不可写。
 - **站点保护**：可选 Basic Auth（`middleware.ts`）+ 生产 CSP / 安全响应头（`next.config.mjs`）。
 
 ---
-
-本仓库默认**不含任何密钥、不含本地数据库、不含用户数据**，可直接 `git push` 到 GitHub 公开库。

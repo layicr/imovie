@@ -48,9 +48,11 @@ Copy `.env.example` to `.env.local` and fill in:
 | Dashboard     | `/`              | Featured hero + horizontal "Plan" / "Watched" rows    |
 | Detail        | `/detail/[id]`   | Strict metadata layout (director/cast/rating/aliases)|
 | Search        | `/search`        | Global keyword + year/genre/country filters + hot tags|
-| Yearly Report | `/report`        | Three overview cards + per-year poster wall + subtotals|
+| Yearly Report | `/report`        | Three overview cards + per-year poster wall + subtotals + month drill-down|
 
 > This repository is a **showcase site**: it has no write features such as "add title", "Douban import", "status toggle", or "rating/tag editing". All data is loaded once via `npm run db:seed`.
+
+The report drill-down ("viewing details") is ordered by **month descending** (newest month first), and titles within a month are sorted by watch time descending. The year/month label follows the UI language (Chinese `2026年1月` / English `Jan, 2026`).
 
 ## 4. Common Scripts
 
@@ -68,20 +70,17 @@ npm run db:seed   # Create tables and insert sample data (one-time seed)
 app/            Pages and API routes (App Router)
   api/         records (GET list / detail/[tmdb_id] detail), stats (GET yearly report)
 components/     Nav / PosterCard / MovieRow / Analytics etc.
-lib/           db / queries (read-only) / config / poster / types / time / validate / i18n / analytics
+lib/           db / queries (read-only) / config / poster / types / validate / i18n / analytics
 data/          schema.sql (database schema)
-doc/           All documentation
 scripts/       seed.ts (one-time seed script; contains write functions but never touches the app layer)
 middleware.ts  Optional HTTP Basic Auth
 ```
 
 ## 6. Data Access & Security
 
-- **Connection & schema**: `lib/db.ts` singleton connection + idempotent table creation per `schema.sql`; auto-retries on first connection failure.
-- **Query layer**: `lib/queries.ts` contains only 5 `SELECT` functions (list/filter/search, sidebar dimensions, detail, report overview, report grouping). All use parameterized placeholders, and dynamic ordering goes through a whitelist enum — **zero SQL injection**.
+- **Connection & schema**: `lib/db.ts` singleton connection; on first connect it creates tables idempotently per `schema.sql`. The schema result is cached in a module-level `schemaReady` Promise so it runs only once per process, with auto-retry on failure.
+- **Query layer**: `lib/queries.ts` contains only `SELECT` functions (list/filter/search, sidebar dimensions, detail, report overview, report grouping). All use parameterized placeholders, and dynamic ordering goes through a whitelist enum — **zero SQL injection**.
 - **Write isolation**: write logic `ensureItem` / `upsertRecord` is defined only inside `scripts/seed.ts` and is never imported into the app layer, guaranteeing the production runtime is unwritable.
 - **Site protection**: optional Basic Auth (`middleware.ts`) + production CSP / security response headers (`next.config.mjs`).
 
 ---
-
-This repository ships by default with **no keys, no local database, and no user data**, and can be `git push`-ed directly to a public GitHub repo.

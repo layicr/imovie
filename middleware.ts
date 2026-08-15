@@ -8,13 +8,14 @@ import { NextRequest, NextResponse } from "next/server";
 // 用户名任意，仅校验密码，方便单人使用。
 // 匹配规则排除静态资源，避免无谓拦截。
 
-// 恒定时间比较，避免密码校验的时序侧信道
+// 恒定时间比较，避免密码校验的时序侧信道（Edge Runtime 无 node:crypto，用 TextEncoder + XOR 累积）。
 function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
+  const enc = new TextEncoder();
+  const ba = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ba.length !== bb.length) return false;
   let diff = 0;
-  for (let i = 0; i < bufA.length; i++) diff |= bufA[i] ^ bufB[i];
+  for (let i = 0; i < ba.length; i++) diff |= ba[i] ^ bb[i];
   return diff === 0;
 }
 

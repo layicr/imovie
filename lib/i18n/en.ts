@@ -61,6 +61,10 @@ export const en: Record<string, string> = {
   "report.thisYear": "Watched This Year",
   "report.yearSummary": "Watched {0} · Avg {1}",
   "report.noWatched": 'No "watched" records yet.',
+  "report.yearDetail": " Report",
+  "report.collapse": "Collapse",
+  "report.monthCount": "{0}",
+  "report.month": "{1}, {0}",
 
   "detail.loading": "Loading…",
   "detail.notFound": "Movie not found (may not be added yet).",

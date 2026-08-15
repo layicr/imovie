@@ -38,11 +38,12 @@ export interface RecordRow {
 }
 
 // 报表按年分组结构
+// items 仅供未来年份下钻使用，报表页当前仅消费 count/avg，故设为可选。
 export interface YearGroup {
   year: number;
   count: number;
   avg: number | null;
-  items: RecordRow[];
+  items?: RecordRow[];
 }
 
 export interface ReportData {
@@ -52,4 +53,18 @@ export interface ReportData {
     thisYearWatched: number;
   };
   years: YearGroup[];
+}
+
+// 年份下钻：按月（YYYY-MM）分组观影记录
+export interface MonthBucket {
+  monthKey: string; // 中性标识，例如 "2026-01"（展示文案由前端按语言格式化）
+  monthLabel: string; // 同 monthKey 占位（实际展示用 formatMonth 生成）
+  count: number;
+  items: RecordRow[];
+}
+
+export interface YearReportData {
+  year: number;
+  total: number;
+  months: MonthBucket[];
 }

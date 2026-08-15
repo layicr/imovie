@@ -60,6 +60,10 @@ export const zh: Record<string, string> = {
   "report.thisYear": "今年已看",
   "report.yearSummary": "看过 {0} 部 · 平均 {1} 分",
   "report.noWatched": "还没有「已看」记录。",
+  "report.yearDetail": " 观影明细",
+  "report.collapse": "收起",
+  "report.monthCount": "{0} 部",
+  "report.month": "{0}年{1}月",
 
   "detail.loading": "加载中…",
   "detail.notFound": "未找到该影片（可能尚未添加）。",

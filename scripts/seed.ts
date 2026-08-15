@@ -1,6 +1,11 @@
-﻿// 种子脚本：插入一批示例影片，让「拉下来即可跑」流程可见可点。
-// 直接运行：npm run db:seed（内部用 tsx 执行本文件）。
-// 说明：示例数据不依赖 TMDb Key，海报留空，前端自动回退 picsum 占位图。
+﻿// 种子脚本（一次性灌库）：写入一批示例影片，让「拉下来即可跑」流程可见可点。
+//
+// 运行方式：npm run db:seed（等价于 tsx scripts/seed.ts）。
+// 行为说明：
+//   1. 依赖 lib/db 按 data/schema.sql 幂等建表（CREATE TABLE IF NOT EXISTS，重复运行安全）；
+//   2. 示例数据不依赖 TMDb Key，海报路径留空，前端自动回退 picsum 占位图；
+//   3. 写入逻辑（ensureItem / upsertRecord）仅在本文件内，不导入应用层，保持线上运行态只读。
+// 注意：本脚本仅供本地开发 / 演示初始化使用，非生产写入入口。
 import { getDb } from "../lib/db";
 import type { Client } from "@libsql/client";
 import type { Item } from "../lib/types";
@@ -42,19 +47,27 @@ async function ensureItem(db: Client, it: Item): Promise<void> {
   });
 }
 
-// 写入/更新观影记录（同一用户同一影片唯一；评分仅 watched 时带入）。
+// 写入/更新观影记录（同一用户同一影片唯一；评分与 watched_at 仅 watched 时带入）。
+// watched_at 必须显式提供，否则年度报告「按年分组」与「今年已看」会因 NULL 被过滤掉。
 async function upsertRecord(
   db: Client,
-  r: { tmdb_id: number; status: "plan" | "watched"; rating: number | null; tags: string }
+  r: {
+    tmdb_id: number;
+    status: "plan" | "watched";
+    rating: number | null;
+    tags: string;
+    watched_at: string | null;
+  }
 ): Promise<void> {
   await db.execute({
-    sql: `INSERT INTO imovie_records (tmdb_id, user_id, status, rating, tags)
-      VALUES (?, 1, ?, ?, ?)
+    sql: `INSERT INTO imovie_records (tmdb_id, user_id, status, rating, tags, watched_at)
+      VALUES (?, 1, ?, ?, ?, ?)
       ON CONFLICT(user_id, tmdb_id) DO UPDATE SET
         status = excluded.status,
         rating = excluded.rating,
-        tags = excluded.tags`,
-    args: [r.tmdb_id, r.status, r.rating ?? null, r.tags ?? ""],
+        tags = excluded.tags,
+        watched_at = excluded.watched_at`,
+    args: [r.tmdb_id, r.status, r.rating ?? null, r.tags ?? "", r.watched_at],
   });
 }
 
@@ -2166,14 +2179,36 @@ const items: Item[] = [
 ];
 
 // 记录：用脚本统一生成，约 60% 已看（带评分，取豆瓣评分四舍五入）、40% 想看；标签取影片类型。
+// watched 记录的 watched_at 分散到近 5 年，让年度报告「按年分组」与「今年已看」有真实数据：
+//   - 最近 3 年（含今年）占近 70%，保证「今年已看 > 0」；
+//   - 前 2 年共占约 30%，呈现多年累计观影感。
+const CURRENT_YEAR = new Date().getFullYear();
+// 使用本地 naive 字符串，与查询口径一致，避免跨时区偏移。
 const records = items.map((it, i) => {
   const watched = i % 5 < 3;
   const rating = watched ? Math.max(1, Math.min(10, Math.round(it.douban_rating ?? 7))) : null;
+  let watched_at: string | null = null;
+  if (watched) {
+    // 用 i 决定「最近」权重：i 越小越近期；月日固定在上半年中段避免同日聚集。
+    const yearOffset = (() => {
+      const r = i % 10;
+      if (r < 3) return 0; // 今年
+      if (r < 5) return 1; // 去年
+      if (r < 7) return 2; // 前年
+      if (r < 9) return 3; // 三年前
+      return 4;            // 四年前
+    })();
+    const month = (i % 12) + 1; // 1..12
+    const day = ((i * 7) % 27) + 1; // 1..27
+    const y = CURRENT_YEAR - yearOffset;
+    watched_at = `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")} 20:00:00`;
+  }
   return {
     tmdb_id: it.tmdb_id,
     status: (watched ? "watched" : "plan") as "watched" | "plan",
     rating,
     tags: watched ? (it.genres ?? "") : "",
+    watched_at,
   };
 });
 
@@ -2183,7 +2218,13 @@ async function main() {
     await ensureItem(db, it);
   }
   for (const r of records) {
-    await upsertRecord(db, { tmdb_id: r.tmdb_id, status: r.status, rating: r.rating, tags: r.tags });
+    await upsertRecord(db, {
+      tmdb_id: r.tmdb_id,
+      status: r.status,
+      rating: r.rating,
+      tags: r.tags,
+      watched_at: r.watched_at,
+    });
   }
   console.log(`✓ 种子完成：插入 ${items.length} 部影片，${records.length} 条记录。`);
 }
