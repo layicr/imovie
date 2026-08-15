@@ -1,5 +1,7 @@
 # iMOVIE · 个人观影记录展示站
 
+English version: [README.en.md](./README.en.md)
+
 一个自托管的**只读**个人观影记录展示网站，用于浏览与查阅自己的「想看 / 已看」电影与剧集。  
 Netflix 流媒体风界面，响应式适配桌面与手机。
 

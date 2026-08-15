@@ -35,10 +35,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     if (nav.startsWith("en")) setLangState("en");
   }, []);
 
-  // 语言变化时：持久化 + 同步 <html lang>，利于 SEO 与无障碍
+  // 语言变化时：持久化 + 同步 <html lang> 与 <title>，利于 SEO / 无障碍 / 标签页标题跟随切换
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+      document.title = translations[lang]["site.title"] ?? translations.zh["site.title"];
     }
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(STORAGE_KEY, lang);
