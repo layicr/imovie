@@ -7,11 +7,11 @@ import type { MediaType, MonthBucket, RecordRow, ReportData, Status, YearGroup, 
 const COLS = `
   r.id AS rec_id, r.status AS status, r.rating AS rating, r.tags AS tags,
   r.watched_at AS watched_at, r.created_at AS rec_created,
-  i.tmdb_id, i.media_type, i.title, i.original_title, i.year, i.poster_path,
+  i.item_id, i.tmdb_id, i.media_type, i.title, i.original_title, i.year, i.poster_path,
   i.overview, i.director, i.writer, i.cast, i.genres, i.country, i.language,
-  i.release_date, i.runtime, i.aka, i.imdb_id, i.douban_rating, i.tmdb_rating
+  i.release_date, i.runtime, i.aka, i.imdb_id, i.douban_id, i.douban_rating, i.tmdb_rating
 `;
-const JOIN = `FROM imovie_records r JOIN imovie_items i ON r.tmdb_id = i.tmdb_id`;
+const JOIN = `FROM imovie_records r JOIN imovie_items i ON r.item_id = i.item_id`;
 
 export interface ListFilters {
   status?: Status;
@@ -41,7 +41,8 @@ function mapRow(r: Record<string, unknown>): RecordRow {
     watched_at: (r.watched_at as string) ?? null,
     created_at: (r.rec_created as string) ?? null,
     item: {
-      tmdb_id: r.tmdb_id as number,
+      item_id: r.item_id as string,
+      tmdb_id: (r.tmdb_id as number) ?? null,
       media_type: r.media_type as MediaType,
       title: r.title as string,
       original_title: (r.original_title as string) ?? null,
@@ -58,6 +59,7 @@ function mapRow(r: Record<string, unknown>): RecordRow {
       runtime: (r.runtime as number) ?? null,
       aka: (r.aka as string) ?? null,
       imdb_id: (r.imdb_id as string) ?? null,
+      douban_id: (r.douban_id as string) ?? null,
       douban_rating: (r.douban_rating as number) ?? null,
       tmdb_rating: (r.tmdb_rating as number) ?? null,
     },
@@ -159,7 +161,7 @@ export async function listFacets(db: Client): Promise<Facets> {
   // 只取「已有观影记录」的影片维度，避免未看影片污染筛选选项，并缩小扫描范围。
   const gRes = await db.execute({
     sql: `SELECT DISTINCT genres, country FROM imovie_items
-          WHERE tmdb_id IN (SELECT tmdb_id FROM imovie_records)
+          WHERE item_id IN (SELECT item_id FROM imovie_records)
             AND ((genres IS NOT NULL AND genres <> '') OR (country IS NOT NULL AND country <> ''))`,
     args: [],
   });
@@ -186,7 +188,7 @@ export async function listFacets(db: Client): Promise<Facets> {
 
   const yRes = await db.execute({
     sql: `SELECT DISTINCT year FROM imovie_items
-          WHERE tmdb_id IN (SELECT tmdb_id FROM imovie_records) AND year IS NOT NULL
+          WHERE item_id IN (SELECT item_id FROM imovie_records) AND year IS NOT NULL
           ORDER BY year DESC`,
     args: [],
   });
@@ -200,10 +202,10 @@ export async function listFacets(db: Client): Promise<Facets> {
 }
 
 // 单条记录（详情页用）
-export async function getRecord(db: Client, tmdb_id: number): Promise<RecordRow | null> {
+export async function getRecord(db: Client, item_id: string): Promise<RecordRow | null> {
   const res = await db.execute({
-    sql: `SELECT ${COLS} ${JOIN} WHERE r.tmdb_id = ?`,
-    args: [tmdb_id],
+    sql: `SELECT ${COLS} ${JOIN} WHERE r.item_id = ?`,
+    args: [item_id],
   });
   const rows = res.rows as Record<string, unknown>[];
   return rows.length ? mapRow(rows[0]) : null;

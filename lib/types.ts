@@ -5,7 +5,7 @@ export type Status = "plan" | "watched";
 
 // 影片元数据（对应 imovie_items 表）
 export interface Item {
-  tmdb_id: number;
+  item_id?: string | null;               // 主键；TMDb 独占条目可为空，但作为主键需有值
   media_type: MediaType;
   title: string;
   original_title?: string | null;
@@ -22,6 +22,8 @@ export interface Item {
   runtime?: number | null;
   aka?: string | null;
   imdb_id?: string | null;
+  douban_id?: string | null;
+  tmdb_id?: number | null;
   douban_rating?: number | null;
   tmdb_rating?: number | null;
 }

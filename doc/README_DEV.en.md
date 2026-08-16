@@ -60,10 +60,11 @@ app/            Pages and API routes (App Router)
   api/         records (GET list / detail/[tmdb_id] detail), stats (GET yearly report)
 components/     Nav / PosterCard / MovieRow / Analytics etc.
 lib/           db / queries (read-only) / config / poster / types / validate / i18n / analytics
-data/          schema.sql (database schema)
+data/          schema.sql (table DDL) + local.db (runtime database)
 scripts/       seed.ts (one-time seed script; contains write functions but never touches the app layer)
 middleware.ts  Optional HTTP Basic Auth
 ```
+
 
 ## 6. Data Access & Security
 

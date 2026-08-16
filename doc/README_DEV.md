@@ -60,10 +60,12 @@ app/           页面与 API 路由（App Router）
   api/         records（GET 列表 / detail/[tmdb_id] 详情）、stats（GET 年报）
 components/     Nav / PosterCard / MovieRow / Analytics 等
 lib/           db / queries（纯只读）/ config / poster / types / validate / i18n / analytics
-data/          schema.sql（数据库结构）
+data/          schema.sql（建表 DDL）+ local.db（运行时实际数据库）
 scripts/       seed.ts（一次性灌库脚本，内含写库函数，不污染应用层）
 middleware.ts  可选 HTTP Basic Auth
 ```
+
+
 
 ## 六、数据访问与安全
 

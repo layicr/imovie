@@ -47,7 +47,7 @@ export default function Home() {
           style={{
             backgroundImage: `linear-gradient(to top, #141414 5%, rgba(20,20,20,0.2) 70%), url(${posterUrl(
               featured.item.poster_path,
-              String(featured.item.tmdb_id)
+              String(featured.item.item_id)
             )})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
@@ -67,7 +67,7 @@ export default function Home() {
                 </p>
               ) : null}
               <a
-                href={`/detail/${featured.item.tmdb_id}`}
+                href={`/detail/${featured.item.item_id}`}
                 className="mt-4 inline-block rounded bg-brand px-5 py-2 text-sm font-semibold hover:bg-red-700"
               >
                 {t("home.viewDetail")}
@@ -76,7 +76,7 @@ export default function Home() {
 
             <div className="relative hidden aspect-[2/3] w-32 shrink-0 overflow-hidden rounded-lg shadow-2xl sm:block sm:w-44 lg:w-52">
               <Image
-                src={posterUrl(featured.item.poster_path, String(featured.item.tmdb_id))}
+                src={posterUrl(featured.item.poster_path, String(featured.item.item_id))}
                 alt={featured.item.title}
                 fill
                 className="object-cover"

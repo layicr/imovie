@@ -6,7 +6,24 @@ import { useEffect, useId, useMemo, useState } from "react";
 import Image from "next/image";
 import { posterUrl } from "@/lib/poster";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { COUNTRY_OPTIONS, LANGUAGE_OPTIONS } from "@/lib/config";
 import type { Item, RecordRow, Status } from "@/lib/types";
+
+// 制片国家/地区标签：库里以 2 位国家代码（COUNTRY_OPTIONS.value）存储，
+// 显示时按当前语言映射到 zh/en 名称；未收录则原样显示代码。
+function countryDisplay(value: string, lang: "zh" | "en"): string {
+  const opt = COUNTRY_OPTIONS.find((c) => c.value === value);
+  if (opt) return lang === "en" ? opt.en : opt.zh;
+  return value;
+}
+
+// 语言标签：库里以 ISO 639-1 两位小写代码（LANGUAGE_OPTIONS.value）存储，
+// 显示时按当前语言映射到 zh/en 名称；未收录则原样显示代码。
+function languageDisplay(value: string, lang: "zh" | "en"): string {
+  const opt = LANGUAGE_OPTIONS.find((l) => l.value === value);
+  if (opt) return lang === "en" ? opt.en : opt.zh;
+  return value;
+}
 
 // 详情页元数据里需要「拆分成多项并各自链接到搜索页」的字段（导演/编剧/主演/类型/制片国家地区）。
 const LINK_FIELDS = new Set([
@@ -68,10 +85,10 @@ function StarRating({ score }: { score: number }) {
 
 // 详情页：顶部 Hero 大图 + 大圆角海报 + 严格元数据排版 + 状态展示 + 评分展示（1–10）+ 标签。
 export default function Detail() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const params = useParams();
-  const tmdb_id = Number(params.id);
-  if (!Number.isInteger(tmdb_id)) {
+  const item_id = String(params.id);
+  if (!item_id) {
     return <div className="py-20 text-center text-subtle">{t("detail.notFound")}</div>;
   }
 
@@ -85,11 +102,11 @@ export default function Detail() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tmdb_id]);
+  }, [item_id]);
 
   async function load() {
     try {
-      const res = await fetch(`/api/records/${tmdb_id}`);
+      const res = await fetch(`/api/records/${item_id}`);
       if (res.ok) {
         const d = await res.json();
         setData(d);
@@ -114,21 +131,21 @@ export default function Detail() {
     (status === "watched" ? record?.watched_at : record?.created_at)?.slice(0, 10) ?? "";
 
   // 严格按规范的元数据排版顺序渲染（标签随语言切换）
-  const meta: { labelKey: string; value?: string | null }[] = [
+  const meta: { labelKey: string; value?: string | null; display?: string }[] = [
     { labelKey: "detail.director", value: item.director },
     { labelKey: "detail.writer", value: item.writer },
     { labelKey: "detail.cast", value: item.cast },
     { labelKey: "detail.genre", value: item.genres },
     { labelKey: "detail.country", value: item.country },
-    { labelKey: "detail.language", value: item.language },
+    { labelKey: "detail.language", value: item.language, display: item.language ? languageDisplay(item.language, lang) : undefined },
     { labelKey: "detail.release", value: item.release_date },
     { labelKey: "detail.runtime", value: item.runtime ? `${item.runtime} ${t("detail.runtimeUnit")}` : null },
     { labelKey: "detail.aka", value: item.aka },
     { labelKey: "detail.imdb", value: item.imdb_id },
-    { labelKey: "detail.tmdbId", value: String(item.tmdb_id) },
+    { labelKey: "detail.tmdbId", value: item.tmdb_id != null ? String(item.tmdb_id) : null },
   ];
 
-  const heroBackdrop = posterUrl(item.poster_path, String(item.tmdb_id));
+  const heroBackdrop = posterUrl(item.poster_path, String(item.item_id));
 
   return (
     <div>
@@ -164,7 +181,7 @@ export default function Detail() {
         <div className="w-[150px] shrink-0 sm:w-[220px]">
           <div className="overflow-hidden rounded-xl ring-1 ring-line shadow-2xl">
             <Image
-              src={posterUrl(item.poster_path, String(item.tmdb_id))}
+              src={posterUrl(item.poster_path, String(item.item_id))}
               alt={item.title}
               width={220}
               height={330}
@@ -223,7 +240,9 @@ export default function Detail() {
                 <dt className="w-28 shrink-0 text-subtle">{t(m.labelKey)}</dt>
                 <dd className="text-white">
                   {m.value ? (
-                    LINK_FIELDS.has(m.labelKey) ? (
+                    m.display ? (
+                      m.display
+                    ) : LINK_FIELDS.has(m.labelKey) ? (
                       (() => {
                         // 不同字段跳转到搜索页对应的筛选参数：类型→genre，国家→country，其余→q
                         const param =
@@ -239,7 +258,7 @@ export default function Detail() {
                               href={`/search?${param}=${encodeURIComponent(part)}`}
                               className="text-[#3070a8] hover:text-[#6a97bb] hover:underline"
                             >
-                              {part}
+                              {param === "country" ? countryDisplay(part, lang) : part}
                             </Link>
                           </span>
                         ));

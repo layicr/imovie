@@ -13,12 +13,12 @@ export default function PosterCard({ rec }: { rec: RecordRow }) {
   const { t } = useLanguage();
   return (
     <Link
-      href={`/detail/${item.tmdb_id}`}
+      href={`/detail/${item.item_id}`}
       className="group relative block w-[140px] shrink-0 snap-start sm:w-[160px]"
     >
       <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-panel ring-1 ring-line transition-transform duration-300 group-hover:z-10 group-hover:scale-110 group-hover:shadow-2xl">
         <Image
-          src={posterUrl(item.poster_path, String(item.tmdb_id))}
+          src={posterUrl(item.poster_path, String(item.item_id))}
           alt={item.title}
           fill
           sizes="160px"
