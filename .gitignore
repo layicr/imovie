@@ -7,11 +7,11 @@ node_modules/
 .env*.local
 
 # 本地数据库文件（绝不入库，含私人观影数据）
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
-data/local.db
+#*.db
+#*.db-journal
+#*.db-wal
+#*.db-shm
+#data/local.db
 
 # 构建产物
 .next/
