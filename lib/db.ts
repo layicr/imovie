@@ -31,7 +31,13 @@ async function connect(): Promise<Client> {
 
 // 读取 schema.sql 并按语句顺序执行建表（幂等，CREATE TABLE IF NOT EXISTS）。
 // 执行结果由 schemaReady 缓存，保证整个进程生命周期内仅跑一次。
+// 优化：库已含目标表时直接短路，跳过逐条建表往返（冷启动提速，尤其 Vercel 打包库场景）。
 async function applySchema(client: Client): Promise<void> {
+  const probe = await client.execute(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='imovie_items'"
+  );
+  if (probe.rows.length > 0) return;
+
   const schema = fs.readFileSync(path.join(process.cwd(), "data", "schema.sql"), "utf-8");
   const statements = schema
     .split(";")
