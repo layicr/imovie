@@ -12,6 +12,19 @@ const nextConfig = {
     ],
   },
 
+  // 运行期由 lib/db.ts 通过 fs 动态打开 data/local.db（无 import 链），
+  // Next.js 默认不会把它打包进 Serverless 函数。显式声明将其纳入 trace，
+  // 否则 Vercel 上读到的会是 connect() 时新建的空库 → 无数据。
+  // 启用 Turso 等远程数据库时，不再读取本地文件：把 INCLUDE_LOCAL_DB 设为
+  // "false"（Vercel 项目环境变量）即可关闭此打包规则，避免无效体积。
+  experimental: {
+    ...(process.env.INCLUDE_LOCAL_DB !== "false" && {
+      outputFileTracingIncludes: {
+        "/api/**/*": ["./data/**/*"],
+      },
+    }),
+  },
+
   // 全局安全响应头（公网部署加固）
   async headers() {
     return [
