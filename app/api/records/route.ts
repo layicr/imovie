@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { listFacets, listRecords } from "@/lib/queries";
 import { listQuerySchema } from "@/lib/validate";
+import { PAGE_SIZE_DEFAULT } from "@/lib/config";
 
 export const dynamic = "force-dynamic"; // 依赖查询参数，禁止静态预渲染
 
-// GET /api/records?status=&media_type=&year=&genre=&q=&sort=&order=&page=&limit=
+// GET /api/records?status=&media_type=&year=&genre=&country=&q=&sort=&order=&page=&limit=
 // 看板列表 / 多维筛选 / 全局搜索统一入口（参数化查询，防注入）。
 export async function GET(req: NextRequest) {
   try {
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
     const db = await getDb();
     const { records, total } = await listRecords(db, parsed);
     const { genres, years, countries } = await listFacets(db);
-    const pageSize = parsed.limit ?? 60;
+    const pageSize = parsed.limit ?? PAGE_SIZE_DEFAULT;
     const page = parsed.page && parsed.page > 1 ? parsed.page : 1;
     return NextResponse.json({
       records,

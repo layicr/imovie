@@ -16,12 +16,12 @@ export default function PosterCard({ rec }: { rec: RecordRow }) {
       href={`/detail/${item.item_id}`}
       className="group relative block w-[140px] shrink-0 snap-start sm:w-[160px]"
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-panel ring-1 ring-line transition-transform duration-300 group-hover:z-10 group-hover:scale-110 group-hover:shadow-2xl">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-panel ring-1 ring-line transition-transform duration-300 [@media(hover:hover)]:group-hover:z-10 [@media(hover:hover)]:group-hover:scale-110 [@media(hover:hover)]:group-hover:shadow-2xl active:scale-95">
         <Image
           src={posterUrl(item.poster_path, String(item.item_id))}
           alt={item.title}
           fill
-          sizes="160px"
+          sizes="(max-width:640px) 140px, 160px"
           className="object-cover"
           loading="lazy"
         />
@@ -41,7 +41,7 @@ export default function PosterCard({ rec }: { rec: RecordRow }) {
             </span>
           ) : null}
         </div>
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 opacity-0 transition group-hover:opacity-100">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 opacity-100 transition [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
           {item.original_title ? (
             <p className="mb-1 line-clamp-2 text-[11px] leading-tight text-white">
               <span className="text-subtle">{t("card.originalTitle")}：</span>

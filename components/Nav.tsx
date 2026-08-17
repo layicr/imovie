@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { NAV_LINKS, SITE_NAME } from "@/lib/config";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -15,6 +15,17 @@ export default function Nav() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
 
+  // 移动端友好：停止输入 600ms 后自动跳搜索页，免去按回车/搜索按钮；
+  // 已在 /search 页内则不重复触发，避免循环跳转。
+  useEffect(() => {
+    const term = q.trim();
+    if (!term || pathname === "/search") return;
+    const id = setTimeout(() => {
+      router.push(`/search?q=${encodeURIComponent(term)}`);
+    }, 600);
+    return () => clearTimeout(id);
+  }, [q, pathname, router]);
+
   const links = NAV_LINKS;
 
   function submit(e: React.FormEvent) {
@@ -26,8 +37,8 @@ export default function Nav() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-gradient-to-b from-ink/95 to-ink/70 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
+    <header className="sticky top-0 z-50 border-b border-line bg-gradient-to-b from-ink/95 to-ink/70 backdrop-blur pt-[env(safe-area-inset-top)]">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4">
         <Link href="/" className="font-display text-2xl tracking-widest text-brand">
           {SITE_NAME}
         </Link>
@@ -46,21 +57,21 @@ export default function Nav() {
           ))}
         </nav>
 
-        {/* 桌面端搜索框 */}
-        <form onSubmit={submit} className="ml-auto hidden max-w-xs flex-1 sm:block">
+        {/* 搜索框：移动端常驻（汉堡左侧），桌面端靠右；min-w-0 防止挤压 logo */}
+        <form onSubmit={submit} className="ml-auto flex min-w-0 flex-1 items-center sm:max-w-xs">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("nav.searchPlaceholder")}
-            className="w-full rounded border border-line bg-panel px-3 py-1.5 text-sm focus:border-brand focus:outline-none"
+            className="h-11 w-full rounded border border-line bg-panel px-3 text-sm focus:border-brand focus:outline-none"
           />
         </form>
 
         <LanguageSwitcher />
 
-        {/* 移动端汉堡按钮 */}
+        {/* 移动端汉堡按钮（仅展开导航链接分组）；≥44px 触控目标 */}
         <button
-          className="ml-auto text-white md:hidden"
+          className="flex h-11 w-11 items-center justify-center text-white md:hidden"
           aria-label={t("nav.menu")}
           onClick={() => setOpen((o) => !o)}
         >
@@ -75,19 +86,11 @@ export default function Nav() {
               key={l.href}
               href={l.href}
               onClick={() => setOpen(false)}
-              className="block py-2 text-sm text-subtle hover:text-white"
+              className="block min-h-[44px] py-3 text-sm text-subtle hover:text-white"
             >
               {t(l.key)}
             </Link>
           ))}
-          <form onSubmit={submit} className="py-2">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t("nav.searchPlaceholder")}
-              className="w-full rounded border border-line bg-panel px-3 py-1.5 text-sm"
-            />
-          </form>
         </div>
       ) : null}
     </header>

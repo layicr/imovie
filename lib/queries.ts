@@ -1,5 +1,6 @@
 import type { Client, InValue } from "@libsql/client";
 import type { MediaType, MonthBucket, RecordRow, ReportData, Status, YearGroup, YearReportData } from "./types";
+import { PAGE_SIZE_DEFAULT } from "./config";
 
 // 所有 SQL 一律使用参数化占位符（?），绝不字符串拼接，从根本防 SQL 注入。
 
@@ -122,15 +123,18 @@ export async function listRecords(db: Client, filters: ListFilters = {}): Promis
   const firstRow = countRes.rows[0] as Record<string, unknown> | undefined;
   const total = firstRow ? Number(firstRow.c) || 0 : 0;
 
-  // 分页：limit<=0 表示不限制（内部批量取数用，如年报全量统计）；否则默认 60。
+  // 分页：内部调用若传 limit<=0（zod 已禁止外部 API 传入）表示不限制，否则回退 PAGE_SIZE_DEFAULT。
   const isUnlimited = (filters.limit ?? 0) <= 0;
-  const limit = isUnlimited ? -1 : filters.limit ?? 60;
+  const limit = isUnlimited ? -1 : filters.limit ?? PAGE_SIZE_DEFAULT;
   const page = filters.page && filters.page > 1 ? filters.page : 1;
   const offset = (page - 1) * (isUnlimited ? 0 : limit);
 
+  const sql = `SELECT ${COLS} ${JOIN}${whereSql} ${orderSql}${
+    isUnlimited ? "" : " LIMIT ? OFFSET ?"
+  }`;
   const res = await db.execute({
-    sql: `SELECT ${COLS} ${JOIN}${whereSql} ${orderSql}${isUnlimited ? "" : ` LIMIT ${limit} OFFSET ${offset}`}`,
-    args: [...args],
+    sql,
+    args: isUnlimited ? [...args] : [...args, limit, offset],
   });
   return { records: (res.rows as Record<string, unknown>[]).map(mapRow), total };
 }
@@ -229,7 +233,7 @@ async function getOverview(db: Client) {
   };
 }
 
-// 年度报告：总览 + 按年份分组的海报墙与小计
+// 年度报告：总览 + 按年份分组的年份小计（海报墙在下钻接口按需返回，此处不返回 items）
 //
 // 优化：年份的 count/avg 直接在数据库层用一条 GROUP BY 聚合返回，
 // 不再像旧实现那样全量拉取 watched 记录后在应用层分组（避免大表全扫 + 内存开销）。

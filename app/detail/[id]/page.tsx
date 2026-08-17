@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useId, useMemo, useState } from "react";
 import Image from "next/image";
-import { posterUrl } from "@/lib/poster";
+import { posterUrl, backdropUrl } from "@/lib/poster";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { COUNTRY_OPTIONS, LANGUAGE_OPTIONS } from "@/lib/config";
 import type { Item, RecordRow, Status } from "@/lib/types";
@@ -145,7 +145,7 @@ export default function Detail() {
     { labelKey: "detail.tmdbId", value: item.tmdb_id != null ? String(item.tmdb_id) : null },
   ];
 
-  const heroBackdrop = posterUrl(item.poster_path, String(item.item_id));
+  const heroBackdrop = backdropUrl(item.poster_path, String(item.item_id));
 
   return (
     <div>
@@ -159,7 +159,7 @@ export default function Detail() {
         }}
       >
         <div className="w-full bg-gradient-to-t from-ink via-ink/80 to-transparent px-4 pb-6 pt-20 sm:px-6 sm:pb-8">
-          <h1 className="font-display text-4xl leading-none tracking-wide text-white sm:text-6xl">
+          <h1 className="font-display text-3xl leading-none tracking-wide text-white sm:text-4xl lg:text-6xl">
             {item.title}
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-subtle">
@@ -185,6 +185,7 @@ export default function Detail() {
               alt={item.title}
               width={220}
               height={330}
+              sizes="(max-width:640px) 150px, 220px"
               className="h-auto w-full object-cover"
               loading="lazy"
             />

@@ -11,6 +11,8 @@ html,
 body {
   background-color: #141414;
   color: #ffffff;
+  /* 移动端：禁用双击缩放与 300ms 点击延迟（触控目标已 ≥44px） */
+  touch-action: manipulation;
 }
 
 body {

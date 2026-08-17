@@ -5,14 +5,16 @@
  *   DATABASE_URL=file:./data/local.db npx tsx scripts/seed.ts
  *
  * 设计依据：data/schema.sql 当前表结构
- *   - imovie_items：主键 item_id（TEXT PRIMARY KEY，影片唯一编号），其余为业务元数据字段
- *   - imovie_records：id 自增主键；item_id 关联 imovie_items.item_id（外键语义，靠应用层保证存在）；
+ *   - imovie_items：主键 item_id（TEXT PRIMARY KEY，影片唯一编号），额外持久化 tmdb_id / douban_id 作为外链拼接用途；
+ *                    其余为业务元数据字段（标题/年份/类型/国家/导演等）。
+ *   - imovie_records：id 自增主键；item_id 按应用层约定引用 imovie_items 主键（schema 未建物理外键，
+ *                    仅外键语义，seed 会先校验影片存在再插入，靠应用层保证存在）；
  *                     UNIQUE(user_id, item_id) 约束同一用户同一影片不可重复；
  *                     status 仅 'plan'（想看）| 'watched'（已看），rating 仅 watched 时填 1-10。
  *
  * item_id 取值策略：item_id 直接等于 douban_id（如 1292052 / 3016187），
  * 既能稳定作为主键/外键，又天然带外链语义。所有 douban_id 均必须有值。
- * records 表通过外键 item_id 引用该主键，保证联表查询可正常 join。
+ * records 表按应用层约定引用该主键（非 SQL 外键），保证联表查询可正常 join。
  */
 
 import { createClient } from "@libsql/client";
@@ -25,7 +27,7 @@ const DB_URL = process.env.DATABASE_URL || "file:./data/local.db";
 // 影片元数据（写入 imovie_items，item_id 为 TEXT 主键）
 // --------------------------------------------------------------------------
 type ItemSeed = {
-  item_id: string; // 主键：媒体类型 + ":" + tmdb_id（如 movie:1399 / tv:1399），需全局唯一
+  item_id: string; // 主键：当前策略直接等于 douban_id（如 1292052），需全局唯一
   tmdb_id: number;
   media_type: "movie" | "tv";
   title: string;

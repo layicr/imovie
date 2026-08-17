@@ -67,7 +67,7 @@ export const GENRE_OPTIONS: GenreOption[] = [
 ];
 
 export interface CountryOption {
-  // value：后端按此值做 country LIKE 匹配（库里存的是中文/原值，故中文为规范值）
+  // value：后端按此值做 country LIKE 匹配（库里存的是 2 位 ISO 3166-1 alpha-2 代码，如 CN/US，故代码为规范值）
   value: string;
   zh: string;
   en: string;
@@ -187,7 +187,7 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
 // 分页：每页条数可选项（集中在 config 维护，前后端共用同一上限）。
 // PAGE_SIZE_DEFAULT 为默认每页条数；数组最后一个值即允许的最大条数。
 export const PAGE_SIZE_OPTIONS: number[] = [ 30, 60, 90, 120];
-export const PAGE_SIZE_DEFAULT = 30;
+export const PAGE_SIZE_DEFAULT = 60;
 export const PAGE_SIZE_MAX = PAGE_SIZE_OPTIONS[PAGE_SIZE_OPTIONS.length - 1];
 
 // 首页看板两行板块的展示数量（想看 / 已看），集中配置便于调整。

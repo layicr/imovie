@@ -5,6 +5,9 @@ const nextConfig = {
 
   // 仅允许白名单内的图片域名，防止通过图片组件发起任意外链请求（SSRF / 外链滥用）
   images: {
+    // 关闭服务端图片优化器：经 Node 代理拉取 TMDb/CDN 原图在国内网络下易遇
+    // ECONNRESET 导致 /_next/image 500；改为浏览器端直连 CDN，避免代理失败。
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "image.tmdb.org" },
       { protocol: "https", hostname: "picsum.photos" },
@@ -44,7 +47,7 @@ const nextConfig = {
               "default-src 'self'",
               // 图片：TMDb CDN、picsum 占位图（含其 CDN 重定向域名 fastly.picsum.photos）/ next/image 优化后的本地代理 / data URI
               "img-src 'self' https://image.tmdb.org https://picsum.photos https://fastly.picsum.photos data:",
-              // 字体：同源 + Google Fonts（项目用 <link> 引入 Inter / Noto Sans SC / Bebas Neue）
+              // 字体：同源（next/font 自托管的 Inter / Bebas Neue）+ Google Fonts（仅中文 Noto Sans SC 经 <link> 引入的 CSS 与字体文件）
               "font-src 'self' https://fonts.gstatic.com",
               // 脚本：同源 + 内联脚本（Next.js webpack runtime / react-refresh 运行时为内联）+ 'unsafe-eval'（dev 的 react-refresh 需要）
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",

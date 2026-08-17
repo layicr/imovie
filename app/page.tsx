@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import MovieRow from "@/components/MovieRow";
-import { posterUrl } from "@/lib/poster";
+import { posterUrl, backdropUrl } from "@/lib/poster";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { HOME_PLAN_LIMIT, HOME_WATCHED_LIMIT } from "@/lib/config";
 import type { RecordRow } from "@/lib/types";
@@ -35,7 +35,27 @@ export default function Home() {
   const featured = watched[0] || plan[0] || null;
 
   if (loading) {
-    return <div className="py-20 text-center text-subtle">{t("home.loading")}</div>;
+    // 骨架屏：结构与正式内容一致（Hero + 两行海报墙），消除客户端拉取首屏的白屏突兀感。
+    return (
+      <div aria-busy="true" aria-label={t("home.loading")}>
+        <div className="relative mb-8 flex min-h-[320px] items-end overflow-hidden rounded-lg bg-panel p-6 sm:min-h-[420px] sm:p-10">
+          <div className="h-8 w-2/3 animate-pulse rounded bg-line" />
+        </div>
+        {[t("home.plan"), t("home.watched")].map((title) => (
+          <section key={title} className="mb-8">
+            <div className="mb-3 h-6 w-32 animate-pulse rounded bg-panel" />
+            <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-4 md:mx-0 md:overflow-visible md:px-0">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="aspect-[2/3] w-[140px] shrink-0 animate-pulse rounded-md bg-panel"
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -45,7 +65,7 @@ export default function Home() {
         <section
           className="relative mb-8 flex min-h-[320px] items-end overflow-hidden rounded-lg p-6 sm:min-h-[420px] sm:p-10"
           style={{
-            backgroundImage: `linear-gradient(to top, #141414 5%, rgba(20,20,20,0.2) 70%), url(${posterUrl(
+            backgroundImage: `linear-gradient(to top, #141414 5%, rgba(20,20,20,0.2) 70%), url(${backdropUrl(
               featured.item.poster_path,
               String(featured.item.item_id)
             )})`,
@@ -58,11 +78,11 @@ export default function Home() {
               <div className="mb-2 text-xs uppercase tracking-widest text-brand">
                 {featured.status === "watched" ? t("home.recentWatched") : t("home.wishlist")}
               </div>
-              <h1 className="font-display text-4xl leading-none sm:text-6xl">
+              <h1 className="font-display text-3xl leading-none sm:text-4xl lg:text-6xl">
                 {featured.item.title}
               </h1>
               {featured.item.overview ? (
-                <p className="mt-3 line-clamp-3 text-sm text-subtle">
+                <p className="mt-3 line-clamp-2 text-sm text-subtle sm:line-clamp-3">
                   {featured.item.overview}
                 </p>
               ) : null}
