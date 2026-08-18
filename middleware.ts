@@ -29,6 +29,7 @@ function safeEqual(a: string, b: string): boolean {
 const WINDOW_MS = 60_000;
 const RATE_LIMIT = Number(process.env.RATE_LIMIT ?? 120); // 全局每 IP 请求上限
 const AUTH_FAIL_LIMIT = Number(process.env.AUTH_FAIL_LIMIT ?? 20); // 认证失败上限
+const MAX_BUCKETS = 2000; // 单个 map 最多保留的桶数，防止异常 IP 风暴撑爆内存
 
 type Bucket = { count: number; resetAt: number };
 // 全局请求计数：key = "r:<ip>"
@@ -55,11 +56,24 @@ function hit(map: Map<string, Bucket>, key: string, limit: number, now: number):
   return limit - b.count;
 }
 
-// 定期清理过期窗口，避免 Map 无限增长（每次请求顺带清一点）
+// 清理过期窗口并限制总容量，避免 Map 无限增长（每次请求顺带执行）。
+// 策略：先删除所有过期桶；若仍超限，则删除最早到期的桶（近似 LRU）。
 function sweep(map: Map<string, Bucket>, now: number) {
-  if (map.size < 500) return;
+  const expired: string[] = [];
+  const active: Array<{ key: string; resetAt: number }> = [];
   for (const [k, v] of map) {
-    if (v.resetAt <= now) map.delete(k);
+    if (v.resetAt <= now) {
+      expired.push(k);
+    } else {
+      active.push({ key: k, resetAt: v.resetAt });
+    }
+  }
+  for (const k of expired) map.delete(k);
+
+  if (map.size > MAX_BUCKETS) {
+    active.sort((a, b) => a.resetAt - b.resetAt);
+    const toEvict = active.slice(0, map.size - MAX_BUCKETS);
+    for (const { key } of toEvict) map.delete(key);
   }
 }
 

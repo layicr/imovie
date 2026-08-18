@@ -13,7 +13,7 @@ describe("listQuerySchema", () => {
     expect(r.q).toBeUndefined();
     expect(r.genre).toBeUndefined();
     expect(r.country).toBeUndefined();
-    expect(r.language).toBeUndefined();
+    expect((r as Record<string, unknown>).language).toBeUndefined();
     expect(r.year).toBeUndefined();
     expect(r.media_type).toBeUndefined();
   });

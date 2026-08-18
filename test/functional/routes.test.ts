@@ -40,8 +40,10 @@ beforeAll(async () => {
   testDb = db;
 });
 
-function makeReq(url: string): NextRequest {
-  return new NextRequest(new URL(url, "http://localhost"));
+function makeReq(url: string, acceptLanguage?: string): NextRequest {
+  const req = new NextRequest(new URL(url, "http://localhost"));
+  if (acceptLanguage) req.headers.set("accept-language", acceptLanguage);
+  return req;
 }
 
 describe("GET /api/records", () => {
@@ -80,7 +82,7 @@ describe("GET /api/records", () => {
 
 describe("GET /api/stats", () => {
   it("正常返回 ReportData（overview + years）", async () => {
-    const res = await statsGET();
+    const res = await statsGET(makeReq("http://localhost/api/stats"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.overview.totalWatched).toBe(1);
@@ -123,5 +125,48 @@ describe("GET /api/stats/[year]", () => {
   it("非法年份 → 400", async () => {
     const res = await statsYearGET(makeReq("http://localhost/api/stats/abcd"), { params: { year: "abcd" } });
     expect(res.status).toBe(400);
+  });
+
+  // 最新实现：年份必须严格为 4 位纯数字 (/^\d{4}$/)，以下输入旧 Number() 校验可能放行，
+  // 但新正则全部拒绝 → 400。
+  it.each([
+    ["202", "3 位"],
+    ["20261", "5 位"],
+    ["20.5", "含小数点"],
+    [" 2024", "含前导空格"],
+    ["+2024", "含符号"],
+    ["2026abc", "被截断的非法输入"],
+  ])("非法年份 %s (%s) → 400", async (year) => {
+    const res = await statsYearGET(makeReq(`http://localhost/api/stats/${year}`), { params: { year } });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBeDefined();
+  });
+
+  it("合法 4 位数字年份（含前导 0 的 2024）通过正则", async () => {
+    const res = await statsYearGET(makeReq("http://localhost/api/stats/2024"), { params: { year: "2024" } });
+    // 2024 在 fixture 中无 watched 记录，total 为 0，但状态应通过校验返回 200
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.year).toBe(2024);
+  });
+
+  // 错误文案国际化：Accept-Language 决定返回中文或英文。
+  it("中文 Accept-Language 返回中文错误文案", async () => {
+    const res = await statsYearGET(
+      makeReq("http://localhost/api/stats/abcd", "zh-CN"),
+      { params: { year: "abcd" } }
+    );
+    const body = await res.json();
+    expect(body.error).toBe("无效年份");
+  });
+
+  it("英文 Accept-Language 返回英文错误文案", async () => {
+    const res = await statsYearGET(
+      makeReq("http://localhost/api/stats/abcd", "en-US"),
+      { params: { year: "abcd" } }
+    );
+    const body = await res.json();
+    expect(body.error).toBe("Invalid year");
   });
 });

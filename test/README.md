@@ -62,39 +62,44 @@ test/
 
 ## 测试用例清单
 
-> 合计 **93 例**：单元 36 + 功能 33（含安全 6）+ UI e2e 24。
+> 合计 **102 例**：单元 23 + 功能 55（含安全 6）+ UI e2e 24。
+> 最近一次全量运行（2026-08-18）：`Test Files 6 passed (6)`，`Tests 78 passed (78)`，耗时 1.63s（单测/功能）。UI e2e 24 例另计。
 
-### 单元测试（36 例）
+### 单元测试（23 例）
 
 | 文件 | 用例数 | 覆盖点 |
 |------|--------|--------|
-| `unit/validate.test.ts` (18) | `listQuerySchema`：合法/非法枚举（`status`/`media_type`/`sort`/`order`）、`page` 缺省 1、`limit` 缺省 `PAGE_SIZE_DEFAULT`、字符串 coerce（`"12"` 成功 / `"abc"` 失败）、`limit` 超 `PAGE_SIZE_MAX` 报错、`year` 可 coerce、`genre`/`q` 非空串、未知字段被 strip |
-| `unit/poster.test.ts` (4) | `posterUrl`：TMDb 相对路径 → 拼 `image.tmdb.org`、完整 http(s) 原样返回、空值回退 picsum（含 `picsum.photos` 域名与 seed） |
-| `unit/config.test.ts` (5+9...) | `PAGE_SIZE_DEFAULT=60` 且包含在 `PAGE_SIZE_OPTIONS`、`PAGE_SIZE_MAX` 为末项且 ≥ 默认、`COUNTRY_OPTIONS` 含新增 `LB`(黎巴嫩)/`MT`(马耳他) 及 `zh/en` 文案、每项 `value`/`zh`/`en` 唯一、`GENRE_OPTIONS`/`LANGUAGE_OPTIONS` 非空且三字段齐全 |
+| `unit/validate.test.ts` (13) | `listQuerySchema`：无输入时字段全为 undefined、`limit`/`page` 字符串 coerce（`"12"` 成功 / `"abc"` 失败）、`limit` 越界（`>PAGE_SIZE_MAX` 或 `<1`）抛错、`page<1` 抛错、非法枚举 `status`/`media_type`/`order` 抛错、`sort` 仅 `release_date`/`douban_rating`/`tmdb_rating`、`q`/`genre`/`country`/`year`/`media_type` 透传、`q` 超长(>100) 抛错、空串 `q` 保持空串（非 undefined） |
+| `unit/poster.test.ts` (5) | `posterUrl`：TMDb 相对路径 → 拼 `image.tmdb.org`、空/null/undefined 回退 picsum（按 `:seed`）、自定义 seed 生效、绝对 http(s) 原样返回、`//` 形式按相对路径拼接 |
+| `unit/config.test.ts` (5) | `PAGE_SIZE_DEFAULT=60` 且包含在 `PAGE_SIZE_OPTIONS`、`PAGE_SIZE_MAX` 为末项且 ≥ 默认、`COUNTRY_OPTIONS` 含新增 `LB`(黎巴嫩)/`MT`(马耳他) 及 `zh/en` 文案、每项 `value`/`zh`/`en` 唯一、`GENRE_OPTIONS`/`LANGUAGE_OPTIONS` 非空且三字段齐全 |
 
 > 注：单元总用例数随断言细化略有浮动，运行 `npm test` 以控制台为准。
 
-### 功能测试（33 例）
+### 功能测试（55 例）
 
-**`functional/queries.test.ts` 基于内存库（19 例）**
+**`functional/queries.test.ts` 基于内存库（30 例）**
 
 | 分组 | 覆盖点 |
 |------|--------|
-| 列表筛选 | 默认返回（按 `release_date` 降序）、`status=watched` / `media_type=movie` / `genre` 模糊 / `year` / `q` 标题模糊 |
-| 排序 | `sort=rating&order=desc`、`NULLS LAST`（无评分项沉底） |
-| 分页 | `page=2&limit=2` 偏移正确、`total` 为全量计数（不受 limit 影响） |
-| 维度 | `listFacets`：年份去重排序、类型去重、国家拆分去重、题材拆分去重 |
+| 列表筛选 | 默认返回 7 条（按 `release_date` 降序）、`status=watched`(4)/`status=plan`(3)、`media_type=tv`(3)、`year=2023`(2)、`genre` 模糊（`/` 分隔命中)、`country` 模糊（`美国/日本` 拆分命中)、`q` 全文搜索片名、组合筛选 |
+| 排序 | 默认 `release_date` 降序、升序、`douban_rating` 降序（NULLS 沉底）、`tmdb_rating` 升序（NULLS LAST） |
+| 分页 | `limit=2` 返回前 2、`limit=2&page=2` 偏移不重复、`limit=0` 不限制返回全部、`page<1` 视为 1 |
+| 维度 | `listFacets`：genres 按 `/`、`,`、`、` 拆分去重排序、countries 拆分去重（含多值 `美国/日本`）、years 去重降序、`invalidateFacets` 后结果一致 |
 | 详情 | `getRecord` 按 `item_id` 联表拼接 / 不存在返回 `null` |
-| 年报 | `getReport` 总览计数与评分均值、`getYearReport` 按月分组小计 / 仅统计指定年份 |
+| 年报 | `getReport` 总览计数与评分均值（(9+8+7+10)/4=8.5）、years 按 `watched_at` 分组降序且各年 count 正确、年份聚合 avg（2023 年 7.5） |
+| 年份下钻 | `getYearReport` 按年份取全年 watched、按月分桶（monthKey `YYYY-MM` 降序）、无记录 `total=0`、仅统计 watched（plan 不计入） |
 
-**`functional/routes.test.ts` 直接调用 Route Handler（10 例）**
+**`functional/routes.test.ts` 直接调用 Route Handler（19 例）**
 
 | 路由 | 覆盖点 |
 |------|--------|
-| `/api/records` (GET) | 正常返回 200 与分页结构（`total`/`items`）、参数校验失败 → 422（`limit` 越界 / 非法 `sort`）、内部错误 → 500（`getDb` 注入抛错）、`facets` 维度字段存在 |
-| `/api/stats` (GET) | 正常返回 200 与年报结构（overview + years）、内部错误 → 500 |
+| `/api/records` (GET) | 正常返回 `{ total, records, page, pageSize, genres, years, countries }` 结构、`status=plan` 筛选生效、非法参数 → 422（错误文案 `参数校验失败`）、非法枚举 `status` → 422 |
+| `/api/stats` (GET) | 正常返回 200 与年报结构（overview + years）、带 `Cache-Control: s-maxage=60` 边缘缓存头 |
+| `/api/records/[item_id]` (GET) | 命中返回 `{ item, record }`、未命中 → 404、缺 `item_id` → 400 |
+| `/api/stats/[year]` (GET) | 合法年份返回按月分组数据（`total`/`months`）、非法年份 `abcd` → 400、4 位正则边界（`202`/`20261`/`20.5`/` 2024`/`+2024`/`2026abc` 全 → 400）、合法 `2024` 通过正则返回 200、`Accept-Language: zh-CN` → 错误文案 `无效年份`、`Accept-Language: en-US` → `Invalid year` |
 
 > 路由测试通过 `vi.mock("@/lib/db", () => ({ getDb: () => Promise.resolve(testDb) }))` 闭包注入内存库，在 `beforeAll` 中赋值模块级变量，避免 `vi.fn()` + `mockResolvedValue` 返回 `undefined` 的陷阱。
+> 错误文案统一来自 `lib/i18n/errors.ts`，由 `Accept-Language` 决定中英文（`apiError` 工具在开发环境回显原始 key/信息、生产环境隐藏 5xx 内部细节）。
 
 **`functional/security.test.ts` 中间件（6 例）**
 
@@ -106,6 +111,7 @@ test/
 | 错误脱敏 | 401 响应体不含 `.ts` / 堆栈 / `stack` 字样，且含 `Authentication required` |
 
 > 每个用例用 `vi.resetModules()` 重载 middleware，确保从干净计数 Map 与正确 env 阈值开始；断言不依赖具体阈值数字，只验证「前若干次放行，之后持续 429」。
+> 限流 Map 已加 `MAX_BUCKETS=2000` 上限与近似 LRU 淘汰，防止异常 IP 风暴撑爆内存。
 
 ### UI 端到端测试（24 例）
 

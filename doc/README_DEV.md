@@ -30,7 +30,7 @@ iMOVIE 是一个自托管的**只读**个人观影记录展示网站，让你以
 浏览器 / 客户端
    │  HTTP（可选 Basic Auth）
    ▼
-middleware.ts       限流（固定窗口）+ HTTP Basic 认证 + 错误脱敏
+middleware.ts       限流（固定窗口 + 近似 LRU 淘汰）+ HTTP Basic 认证 + 错误脱敏
    │
    ▼
 app/               页面（Server Component 直查库）+ api/*（Route Handler）
@@ -38,9 +38,11 @@ app/               页面（Server Component 直查库）+ api/*（Route Handler
    ▼
 lib/queries.ts     纯只读 SELECT（参数化，零注入）
 lib/validate.ts    Zod 入参校验（枚举 / 范围 / 长度）
-lib/db.ts          单例连接 + 幂等建表（schema.sql）
+lib/db.ts          单例连接 + 幂等建表（schema.sql）+ 连接串脱敏
 lib/config.ts      结构性常量（导航 / 筛选选项 / 分页）
 lib/poster.ts      海报 URL 构造（TMDb 相对路径 → 绝对；空值回退 picsum）
+lib/api-error.ts   API 统一错误响应（开发回显 / 生产隐藏 5xx；支持中英文）
+lib/i18n/          errors.ts（zh/en 错误文案字典）+ LanguageProvider（界面语言）
    │
    ▼
 libSQL / Turso      imovie_items + imovie_records（无物理外键，应用层语义关联）
@@ -128,9 +130,12 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 |------|------|------------------|------|------|
 | `/api/records` | GET | `status`/`media_type`/`year`/`genre`/`country`/`q`/`sort`/`order`/`page`/`limit` | `{ records, total, page, pageSize, genres, years, countries }` | 列表/筛选/搜索统一入口；`dynamic = "force-dynamic"` |
 | `/api/stats` | GET | 无 | `{ overview, years }` | 年报总览 + 按年分组；`Cache-Control: s-maxage=60` |
+| `/api/stats/[year]` | GET | 路径参数（4 位纯数字 + 范围 1900–9999） | `{ total, months }` | 年报下钻：按月份分组；`Cache-Control: s-maxage=60` |
 | `/api/records/[item_id]` | GET | 路径参数 | `RecordRow \| null` | 详情联表 |
 
-**校验与错误码**：参数不符 Zod 枚举/范围/长度 → `422`；内部 DB 异常 → `500`。`limit` 上限由 `config.PAGE_SIZE_MAX`（= `PAGE_SIZE_OPTIONS` 末项，当前 120）约束，`sort` 仅允许白名单三值。
+**校验与错误码**：参数不符 Zod 枚举/范围/长度 → `422`；`/api/stats/[year]` 年份非 4 位纯数字或越界 → `400`；内部 DB 异常 → `500`。`limit` 上限由 `config.PAGE_SIZE_MAX`（= `PAGE_SIZE_OPTIONS` 末项，当前 120）约束，`sort` 仅允许白名单三值。
+
+**错误响应国际化**：所有 API 错误统一经 `lib/api-error.ts` 的 `apiError` / `apiErrorFromUnknown` 返回；错误文案由请求头 `Accept-Language` 决定中文（`zh`）或英文（`en`），文案来自 `lib/i18n/errors.ts`。开发环境回显原始信息便于调试，生产环境自动隐藏 5xx 内部细节（统一返回「服务器内部错误」/「Internal server error」）。
 
 **查询层安全**：`lib/queries.ts` 全部 `SELECT` 使用 `?` 参数化占位符，动态排序字段走枚举白名单，**零 SQL 注入**；`genres`/`country` 多值以应用层 `split(/[/,、]/)` 拆分去重，避免 SQL `json_each` 对特殊字符报错。
 
@@ -138,28 +143,31 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 
 ## 七、数据访问与安全
 
-- **连接与建表**：`lib/db.ts` 单例连接；首次连接按 `schema.sql` 幂等建表，建表结果用模块级 `schemaReady` Promise 缓存，整个进程只执行一次，且失败可自动重试。
+- **连接与建表**：`lib/db.ts` 单例连接；首次连接按 `schema.sql` 幂等建表，建表结果用模块级 `schemaReady` Promise 缓存，整个进程只执行一次，且失败可自动重试。连接异常时错误信息经 `maskDbUrl()` 脱敏（远程 `?authToken=***`、本地仅保留文件名），避免泄露令牌或绝对路径。
 - **查询层**：`lib/queries.ts` 仅含 `SELECT` 函数（列表/筛选/搜索、侧栏维度、详情、年报总览、年报分组），全部使用参数化占位符，动态排序走白名单枚举，**零 SQL 注入**。
 - **维度缓存**：`listFacets` 有模块级 5 分钟 TTL 缓存（`facetsCache`），避免每次列表请求重复扫描；写入后调用 `invalidateFacets()` 可立即刷新。
 - **写库隔离**：写入逻辑 `ensureItem` / `upsertRecord` 仅定义在 `scripts/seed.ts` 内，不导入到应用层，保证线上运行态不可写。
 - **站点保护**：可选 Basic Auth（`middleware.ts`）+ 生产 CSP / 安全响应头（`next.config.mjs`）：`X-Content-Type-Options` / `X-Frame-Options: DENY` / `Referrer-Policy` / `Permissions-Policy` / `Content-Security-Policy`（已含 `img-src` 白名单与 `script-src` 内联，dev 需 `'unsafe-eval'`）。
-- **限流中间件**（`middleware.ts`）：Edge Runtime 下用模块级 `Map` 做固定窗口计数。
+- **限流中间件**（`middleware.ts`）：Edge Runtime 下用模块级 `Map` 做固定窗口计数，并已加容量防护：
   - 全局：`RATE_LIMIT` 次 / IP / 60s，超出 `429`（带 `Retry-After`）。
   - 认证防爆破：`AUTH_FAIL_LIMIT` 次 / IP / 60s，超出 `429`；认证成功清空该 IP 失败计数。
-  - 错误响应体不含 `.ts` / 堆栈 / `stack` 字样（脱敏）。
+  - 每次请求顺带执行 `sweep()`：清理过期桶，并在桶数超过 `MAX_BUCKETS=2000` 时按最早到期（`resetAt`）近似 LRU 淘汰，防止异常 IP 风暴撑爆内存。
+  - 错误响应体不含 `.ts` / 堆栈 / `stack` 字样（脱敏）；错误文案统一经 `apiError` 输出（见第六节）。
   - 局限：Serverless 多实例各自计数、不共享，全局一致需换边缘 KV（如 Upstash）。
 
 ---
 
 ## 八、测试体系
 
-`test/` 目录为独立自动化测试套件，**不改动应用源码**，合计 **93 例**：
+`test/` 目录为独立自动化测试套件，**不改动应用源码**，合计 **102 例**：
 
 | 维度 | 框架 | 文件 | 用例 | 说明 |
 |------|------|------|------|------|
-| 单元 | Vitest | `test/unit/*.test.ts` | 36 | 纯函数：Zod 校验、海报 URL、配置常量 |
-| 功能 | Vitest | `test/functional/*.test.ts` | 33 | 内存 `:memory:` 库查询、API 路由、中间件安全 |
+| 单元 | Vitest | `test/unit/*.test.ts` | 23 | 纯函数：Zod 校验、海报 URL、配置常量 |
+| 功能 | Vitest | `test/functional/*.test.ts` | 55 | 内存 `:memory:` 库查询、API 路由、中间件安全（含安全 6 例） |
 | UI e2e | Playwright | `test/e2e/ui.spec.ts` | 24 | Web 桌面端 + 移动端真实界面 |
+
+> 最近一次全量运行（2026-08-18）：Vitest `Test Files 6 passed (6)`、`Tests 78 passed (78)`，耗时 1.63s（单元 + 功能）；UI e2e 24 例另计（需联网拉起 `next dev`）。
 
 ### 设计要点
 1. **不连真实库**：功能测试基于 `:memory:` fixture（`test/fixtures/db.ts` 读 `data/schema.sql` 建表 + 造数据），断言精确、确定、隔离。
@@ -173,7 +181,7 @@ npm test                 # Vitest（单元 + 功能，离线）
 npx playwright test      # UI e2e（需联网，自动拉起 dev server）
 ```
 
-> 详见 [test/README.md](./../test/README.md) 与 [test/REPORT-2026-08-17.md](./../test/REPORT-2026-08-17.md)。
+> 详见 [test/README.md](./../test/README.md) 与 [test/REPORT-2026-08-18.md](./../test/REPORT-2026-08-18.md)。
 
 ---
 
@@ -202,9 +210,9 @@ npm test          # Vitest 单元 + 功能测试（离线）
 
 ```
 app/           页面与 API 路由（App Router）
-  api/         records（GET 列表 / detail/[item_id] 详情）、stats（GET 年报）
+  api/         records（GET 列表 / detail/[item_id] 详情）、stats（GET 年报 / [year] 下钻）
 components/     Nav / PosterCard / MovieRow / Analytics 等
-lib/           db / queries（纯只读）/ config / poster / types / validate / i18n / analytics
+lib/           db / queries（纯只读）/ config / poster / types / validate / api-error / i18n / analytics
 data/          schema.sql（建表 DDL）+ local.db（运行时实际数据库，不入库）
 scripts/       seed.ts（一次性灌库脚本，内含写库函数，不污染应用层）
 test/          unit / functional / e2e / fixtures（自动化测试，见第八节）

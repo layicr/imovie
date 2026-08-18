@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { NAV_LINKS, SITE_NAME } from "@/lib/config";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -14,24 +14,40 @@ export default function Nav() {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 移动端友好：停止输入 600ms 后自动跳搜索页，免去按回车/搜索按钮；
-  // 已在 /search 页内则不重复触发，避免循环跳转。
-  useEffect(() => {
-    const term = q.trim();
-    if (!term || pathname === "/search") return;
-    const id = setTimeout(() => {
+  const goSearch = useCallback(
+    (term: string) => {
+      if (!term || pathname === "/search") return;
       router.push(`/search?q=${encodeURIComponent(term)}`);
-    }, 600);
-    return () => clearTimeout(id);
-  }, [q, pathname, router]);
+    },
+    [pathname, router]
+  );
+
+  // 移动端友好：停止输入 600ms 后自动跳搜索页。
+  // 使用 useRef 保存定时器，避免每次输入都触发 effect 清理链，也防止回车与时延跳转竞态。
+  const debouncedSearch = useCallback(
+    (term: string) => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => goSearch(term), 600);
+    },
+    [goSearch]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const links = NAV_LINKS;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (q.trim()) {
-      router.push(`/search?q=${encodeURIComponent(q.trim())}`);
+    const term = q.trim();
+    if (term) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      goSearch(term);
       setOpen(false);
     }
   }
@@ -61,7 +77,11 @@ export default function Nav() {
         <form onSubmit={submit} className="ml-auto flex min-w-0 flex-1 items-center sm:max-w-xs">
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setQ(value);
+              debouncedSearch(value.trim());
+            }}
             placeholder={t("nav.searchPlaceholder")}
             className="h-11 w-full rounded border border-line bg-panel px-3 text-sm focus:border-brand focus:outline-none"
           />

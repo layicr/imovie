@@ -227,9 +227,9 @@ async function getOverview(db: Client) {
   });
   const row = res.rows[0] as Record<string, unknown> | undefined;
   return {
-    totalWatched: (row?.total as number) ?? 0,
+    totalWatched: Number(row?.total ?? 0),
     avgRating: row?.avg == null ? null : Number(row.avg),
-    thisYearWatched: (row?.thisYear as number) ?? 0,
+    thisYearWatched: Number(row?.thisYear ?? 0),
   };
 }
 
@@ -244,7 +244,7 @@ export async function getReport(db: Client): Promise<ReportData> {
   const res = await db.execute({
     sql: `SELECT
             CAST(strftime('%Y', watched_at) AS INTEGER) AS year,
-            COUNT(*) AS count,
+            CAST(COUNT(*) AS INTEGER) AS count,
             CASE WHEN SUM(CASE WHEN rating IS NOT NULL THEN 1 ELSE 0 END) > 0
                  THEN AVG(CASE WHEN rating IS NOT NULL THEN CAST(rating AS REAL) END)
                  ELSE NULL END AS avg

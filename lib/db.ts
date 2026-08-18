@@ -29,6 +29,28 @@ async function connect(): Promise<Client> {
   return client;
 }
 
+/** 对数据库 URL 做脱敏，用于日志/错误信息，避免泄露 token 或绝对路径。 */
+function maskDbUrl(url: string): string {
+  try {
+    // libsql 客户端支持 https://...?authToken=... 这类 URL
+    if (url.includes("?")) {
+      const u = new URL(url);
+      if (u.searchParams.has("authToken")) {
+        u.searchParams.set("authToken", "***");
+      }
+      return u.toString();
+    }
+    // 本地 file: 路径只保留文件名
+    if (url.startsWith("file:")) {
+      const file = url.slice("file:".length);
+      return `file:${path.basename(file)}`;
+    }
+    return url;
+  } catch {
+    return "<database-url>";
+  }
+}
+
 // 读取 schema.sql 并按语句顺序执行建表（幂等，CREATE TABLE IF NOT EXISTS）。
 // 执行结果由 schemaReady 缓存，保证整个进程生命周期内仅跑一次。
 // 优化：库已含目标表时直接短路，跳过逐条建表往返（冷启动提速，尤其 Vercel 打包库场景）。
@@ -62,9 +84,10 @@ function getSchemaReady(client: Client): Promise<void> {
 // 若首次连接失败，重置 ready 以便下次请求可重试，避免永久复用 rejected Promise。
 export function getDb(): Promise<Client> {
   if (!ready) {
-    ready = connect().catch((err) => {
+    ready = connect().catch((err: unknown) => {
       ready = null;
-      throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`数据库连接失败 (${maskDbUrl(DB_URL)}): ${message}`);
     });
   }
   return ready;

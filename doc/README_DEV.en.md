@@ -30,7 +30,7 @@ iMOVIE is a self-hosted **read-only** personal movie & TV tracking showcase. Wit
 Browser / Client
    │  HTTP (optional Basic Auth)
    ▼
-middleware.ts       Rate limit (fixed window) + HTTP Basic Auth + error masking
+middleware.ts       Rate limit (fixed window + approximate LRU eviction) + HTTP Basic Auth + error masking
    │
    ▼
 app/               Pages (Server Components query the DB directly) + api/* (Route Handlers)
@@ -38,9 +38,11 @@ app/               Pages (Server Components query the DB directly) + api/* (Rout
    ▼
 lib/queries.ts     Pure read-only SELECT (parameterized, zero injection)
 lib/validate.ts    Zod input validation (enums / ranges / lengths)
-lib/db.ts          Singleton connection + idempotent schema creation (schema.sql)
+lib/db.ts          Singleton connection + idempotent schema creation (schema.sql) + URL masking
 lib/config.ts      Structural constants (nav / filter options / pagination)
 lib/poster.ts      Poster URL builder (TMDb relative → absolute; empty falls back to picsum)
+lib/api-error.ts   Unified API error responses (dev echo / prod hides 5xx; zh/en)
+lib/i18n/          errors.ts (zh/en error dictionary) + LanguageProvider (UI language)
    │
    ▼
 libSQL / Turso      imovie_items + imovie_records (no physical FK, app-layer semantic link)
@@ -128,9 +130,12 @@ Two tables (defined in `data/schema.sql`), **no physical foreign keys, only app-
 |-------|--------|------------------------|---------|-------|
 | `/api/records` | GET | `status`/`media_type`/`year`/`genre`/`country`/`q`/`sort`/`order`/`page`/`limit` | `{ records, total, page, pageSize, genres, years, countries }` | Unified list/filter/search entry; `dynamic = "force-dynamic"` |
 | `/api/stats` | GET | none | `{ overview, years }` | Report overview + per-year grouping; `Cache-Control: s-maxage=60` |
+| `/api/stats/[year]` | GET | path param (4-digit number, range 1900–9999) | `{ total, months }` | Report drill-down: grouped by month; `Cache-Control: s-maxage=60` |
 | `/api/records/[item_id]` | GET | path param | `RecordRow \| null` | Detail join |
 
-**Validation & error codes**: input that violates Zod enums/ranges/lengths → `422`; internal DB error → `500`. `limit` is capped by `config.PAGE_SIZE_MAX` (the last item of `PAGE_SIZE_OPTIONS`, currently 120); `sort` allows only a three-value whitelist.
+**Validation & error codes**: input that violates Zod enums/ranges/lengths → `422`; `/api/stats/[year]` with a non-4-digit or out-of-range year → `400`; internal DB error → `500`. `limit` is capped by `config.PAGE_SIZE_MAX` (the last item of `PAGE_SIZE_OPTIONS`, currently 120); `sort` allows only a three-value whitelist.
+
+**Error response i18n**: all API errors are returned uniformly via `apiError` / `apiErrorFromUnknown` in `lib/api-error.ts`; the message language (Chinese `zh` or English `en`) is decided by the `Accept-Language` request header, with text from `lib/i18n/errors.ts`. In development the original message is echoed for debugging; in production 5xx internal details are hidden automatically (returning "服务器内部错误" / "Internal server error").
 
 **Query-layer safety**: all `SELECT`s in `lib/queries.ts` use `?` parameterized placeholders; dynamic ordering goes through an enum whitelist — **zero SQL injection**. `genres`/`country` multi-values are split and deduplicated at the app layer via `split(/[/,、]/)`, avoiding SQL `json_each` errors on special characters.
 
@@ -138,28 +143,31 @@ Two tables (defined in `data/schema.sql`), **no physical foreign keys, only app-
 
 ## 7. Data Access & Security
 
-- **Connection & schema**: `lib/db.ts` singleton connection; on first connect it creates tables idempotently per `schema.sql`. The schema result is cached in a module-level `schemaReady` Promise so it runs only once per process, with auto-retry on failure.
+- **Connection & schema**: `lib/db.ts` singleton connection; on first connect it creates tables idempotently per `schema.sql`. The schema result is cached in a module-level `schemaReady` Promise so it runs only once per process, with auto-retry on failure. On connection failure the error message is masked by `maskDbUrl()` (remote `?authToken=***`, local keeps only the filename) to avoid leaking tokens or absolute paths.
 - **Query layer**: `lib/queries.ts` contains only `SELECT` functions (list/filter/search, sidebar dimensions, detail, report overview, report grouping). All use parameterized placeholders, and dynamic ordering goes through a whitelist enum — **zero SQL injection**.
 - **Dimension cache**: `listFacets` has a module-level 5-minute TTL cache (`facetsCache`) to avoid rescanning on every list request; call `invalidateFacets()` after writes to refresh immediately.
 - **Write isolation**: write logic `ensureItem` / `upsertRecord` is defined only inside `scripts/seed.ts` and is never imported into the app layer, guaranteeing the production runtime is unwritable.
 - **Site protection**: optional Basic Auth (`middleware.ts`) + production CSP / security response headers (`next.config.mjs`): `X-Content-Type-Options` / `X-Frame-Options: DENY` / `Referrer-Policy` / `Permissions-Policy` / `Content-Security-Policy` (includes `img-src` whitelist and `script-src` inline; dev needs `'unsafe-eval'`).
-- **Rate-limit middleware** (`middleware.ts`): under Edge Runtime, uses a module-level `Map` for fixed-window counting.
+- **Rate-limit middleware** (`middleware.ts`): under Edge Runtime, uses a module-level `Map` for fixed-window counting, with capacity protection:
   - Global: `RATE_LIMIT` requests / IP / 60s, `429` on exceed (with `Retry-After`).
   - Auth brute-force protection: `AUTH_FAIL_LIMIT` failures / IP / 60s, `429` on exceed; a successful auth clears that IP's failure counter.
-  - Error responses contain no `.ts` / stack-trace / `stack` strings (masked).
+  - Each request also runs `sweep()`: it drops expired buckets, and when the bucket count exceeds `MAX_BUCKETS=2000` it evicts the earliest-to-reset buckets (approximate LRU), preventing an IP storm from exhausting memory.
+  - Error responses contain no `.ts` / stack-trace / `stack` strings (masked); error text is emitted uniformly via `apiError` (see section 6).
   - Limitation: on Serverless, multiple instances count independently and do not share state; global consistency would require an edge KV (e.g. Upstash).
 
 ---
 
 ## 8. Test Suite
 
-The `test/` directory is a standalone automated test suite that **does not modify application source**; **93 cases** in total:
+The `test/` directory is a standalone automated test suite that **does not modify application source**; **102 cases** in total:
 
 | Layer | Framework | Files | Cases | Notes |
 |-------|-----------|-------|-------|-------|
-| Unit | Vitest | `test/unit/*.test.ts` | 36 | Pure functions: Zod validation, poster URL, config constants |
-| Functional | Vitest | `test/functional/*.test.ts` | 33 | In-memory `:memory:` DB queries, API routes, middleware security |
+| Unit | Vitest | `test/unit/*.test.ts` | 23 | Pure functions: Zod validation, poster URL, config constants |
+| Functional | Vitest | `test/functional/*.test.ts` | 55 | In-memory `:memory:` DB queries, API routes, middleware security (incl. 6 security cases) |
 | UI e2e | Playwright | `test/e2e/ui.spec.ts` | 24 | Web desktop + mobile real UI |
+
+> Latest full run (2026-08-18): Vitest `Test Files 6 passed (6)`, `Tests 78 passed (78)`, 1.63s (unit + functional); UI e2e 24 cases counted separately (needs network to launch `next dev`).
 
 ### Design notes
 1. **No real DB**: functional tests use an in-memory `:memory:` fixture (`test/fixtures/db.ts` reads `data/schema.sql` to build tables + seed data) for precise, deterministic, isolated assertions.
@@ -173,7 +181,7 @@ npm test                 # Vitest (unit + functional, offline)
 npx playwright test      # UI e2e (needs network, auto-starts dev server)
 ```
 
-> See [test/README.md](../test/README.md) and [test/REPORT-2026-08-17.md](../test/REPORT-2026-08-17.md) for details.
+> See [test/README.md](../test/README.md) and [test/REPORT-2026-08-18.md](../test/REPORT-2026-08-18.md) for details.
 
 ---
 
@@ -202,9 +210,9 @@ npm test          # Vitest unit + functional tests (offline)
 
 ```
 app/            Pages and API routes (App Router)
-  api/         records (GET list / detail/[item_id] detail), stats (GET yearly report)
+  api/         records (GET list / detail/[item_id] detail), stats (GET yearly report / [year] drill-down)
 components/     Nav / PosterCard / MovieRow / Analytics etc.
-lib/           db / queries (read-only) / config / poster / types / validate / i18n / analytics
+lib/           db / queries (read-only) / config / poster / types / validate / api-error / i18n / analytics
 data/          schema.sql (table DDL) + local.db (runtime database, not committed)
 scripts/       seed.ts (one-time seed script; contains write functions but never touches the app layer)
 test/          unit / functional / e2e / fixtures (automated tests, see section 8)

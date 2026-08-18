@@ -1,3 +1,5 @@
+"use client";
+
 import Script from "next/script";
 import { BAIDU_TONGJI_ID, LA_51_ID, LA_51_CK, GA_MEASUREMENT_ID } from "@/lib/analytics";
 
@@ -19,16 +21,20 @@ export default function Analytics() {
       ) : null}
 
       {LA_51_ID ? (
-        <>
-          <Script
-            id="la-51-js"
-            strategy="afterInteractive"
-            src="https://sdk.51.la/js-sdk-pro.min.js"
-          />
-          <Script id="la-51-init" strategy="afterInteractive">
-            {`LA.init({id:"${LA_51_ID}",ck:"${LA_51_CK}"})`}
-          </Script>
-        </>
+        <Script
+          id="la-51-js"
+          strategy="afterInteractive"
+          src="https://sdk.51.la/js-sdk-pro.min.js"
+          onLoad={() => {
+            // SDK 脚本加载完成后才初始化；若加载失败 onLoad 不触发，避免 LA is not defined
+            if (typeof (window as unknown as { LA?: { init: (o: object) => void } }).LA !== "undefined") {
+              (window as unknown as { LA: { init: (o: object) => void } }).LA.init({
+                id: LA_51_ID,
+                ck: LA_51_CK,
+              });
+            }
+          }}
+        />
       ) : null}
 
       {GA_MEASUREMENT_ID ? (

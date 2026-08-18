@@ -20,19 +20,28 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 const STORAGE_KEY = "imovie-lang";
 
+function getInitialLang(): Lang {
+  if (typeof localStorage !== "undefined") {
+    const saved = localStorage.getItem(STORAGE_KEY) as Lang | null;
+    if (saved === "zh" || saved === "en") return saved;
+  }
+  if (typeof navigator !== "undefined") {
+    const nav = navigator.language?.toLowerCase() || "";
+    if (nav.startsWith("en")) return "en";
+  }
+  return "zh";
+}
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  // 首屏默认中文，避免与 SSR 输出不一致导致 hydrate 报错；挂载后再按本地存储/浏览器切换。
+  // 首屏默认中文，确保 SSR 与客户端首次渲染一致；挂载后再按本地存储/浏览器切换，
+  // 避免 hydration mismatch。
   const [lang, setLangState] = useState<Lang>("zh");
+  const [hydrated, setHydrated] = useState(false);
 
   // 读取本地存储（或浏览器语言）决定初始语言
   useEffect(() => {
-    const saved = (typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEY)) as Lang | null;
-    if (saved === "zh" || saved === "en") {
-      setLangState(saved);
-      return;
-    }
-    const nav = (typeof navigator !== "undefined" && navigator.language?.toLowerCase()) || "";
-    if (nav.startsWith("en")) setLangState("en");
+    setLangState(getInitialLang());
+    setHydrated(true);
   }, []);
 
   // 语言变化时：持久化 + 同步 <html lang> 与 <title>，利于 SEO / 无障碍 / 标签页标题跟随切换
@@ -41,10 +50,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
       document.title = translations[lang]["site.title"] ?? translations.zh["site.title"];
     }
-    if (typeof localStorage !== "undefined") {
+    if (typeof localStorage !== "undefined" && hydrated) {
       localStorage.setItem(STORAGE_KEY, lang);
     }
-  }, [lang]);
+  }, [lang, hydrated]);
 
   const t = useCallback(
     (key: string, vars?: (string | number)[]) => {

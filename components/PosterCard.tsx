@@ -16,7 +16,9 @@ export default function PosterCard({ rec }: { rec: RecordRow }) {
       href={`/detail/${item.item_id}`}
       className="group relative block w-[140px] shrink-0 snap-start sm:w-[160px]"
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-panel ring-1 ring-line transition-transform duration-300 [@media(hover:hover)]:group-hover:z-10 [@media(hover:hover)]:group-hover:scale-110 [@media(hover:hover)]:group-hover:shadow-2xl active:scale-95">
+      {/* isolate 创建独立 stacking context，防止 hover 放大时被父级 overflow-hidden 裁剪；
+          同时让 z-10 只在卡片内部生效，不污染外层布局。 */}
+      <div className="relative isolate aspect-[2/3] overflow-hidden rounded-md bg-panel ring-1 ring-line transition-transform duration-300 [@media(hover:hover)]:group-hover:z-10 [@media(hover:hover)]:group-hover:scale-110 [@media(hover:hover)]:group-hover:shadow-2xl active:scale-95">
         <Image
           src={posterUrl(item.poster_path, String(item.item_id))}
           alt={item.title}

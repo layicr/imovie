@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { listFacets, listRecords } from "@/lib/queries";
 import { listQuerySchema } from "@/lib/validate";
 import { PAGE_SIZE_DEFAULT } from "@/lib/config";
+import { apiError, apiErrorFromUnknown } from "@/lib/api-error";
 
 export const dynamic = "force-dynamic"; // 依赖查询参数，禁止静态预渲染
 
@@ -40,8 +41,8 @@ export async function GET(req: NextRequest) {
     });
   } catch (e: any) {
     if (e?.name === "ZodError") {
-      return NextResponse.json({ error: "参数校验失败" }, { status: 422 });
+      return apiError("validation_failed", 422, undefined, req);
     }
-    return NextResponse.json({ error: "查询失败" }, { status: 500 });
+    return apiErrorFromUnknown(e, "query_failed", req);
   }
 }
