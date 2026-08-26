@@ -16,3 +16,10 @@ export const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX).optional(),
 });
+
+// 年份路由参数（GET /api/stats/[year]）：严格 4 位纯数字 + 合理范围。
+// 正则拒绝 "2026abc" 这类会被 Number 截断的非法输入，范围避免无意义的年份。
+export const yearParamSchema = z
+  .string()
+  .regex(/^\d{4}$/, "年份必须为 4 位纯数字")
+  .pipe(z.coerce.number().int().min(1900).max(9999));

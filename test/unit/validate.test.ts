@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { listQuerySchema } from "@/lib/validate";
+import { listQuerySchema, yearParamSchema } from "@/lib/validate";
 import { PAGE_SIZE_MAX } from "@/lib/config";
 
 describe("listQuerySchema", () => {
@@ -97,5 +97,41 @@ describe("listQuerySchema", () => {
   it("空字符串 q 保持为空串（不转为 undefined）", () => {
     const r = listQuerySchema.parse({ q: "" });
     expect(r.q).toBe("");
+  });
+});
+
+describe("yearParamSchema", () => {
+  it("合法 4 位数字 2024 → success", () => {
+    expect(yearParamSchema.safeParse("2024").success).toBe(true);
+  });
+  it("前导零 4 位 0190 → 被范围校验拒绝（coerce 后为 190 < 1900）", () => {
+    expect(yearParamSchema.safeParse("0190").success).toBe(false);
+  });
+  it("0000 通过正则但被范围拒绝（coerce 后为 0）", () => {
+    expect(yearParamSchema.safeParse("0000").success).toBe(false);
+  });
+  it("3 位 999 → 失败", () => {
+    expect(yearParamSchema.safeParse("999").success).toBe(false);
+  });
+  it("5 位 12345 → 失败", () => {
+    expect(yearParamSchema.safeParse("12345").success).toBe(false);
+  });
+  it("含非数字 2024a → 失败", () => {
+    expect(yearParamSchema.safeParse("2024a").success).toBe(false);
+  });
+  it("下界 1900 → success", () => {
+    expect(yearParamSchema.safeParse("1900").success).toBe(true);
+  });
+  it("小于下界 1899 → 失败", () => {
+    expect(yearParamSchema.safeParse("1899").success).toBe(false);
+  });
+  it("上界 9999 → success", () => {
+    expect(yearParamSchema.safeParse("9999").success).toBe(true);
+  });
+  it("大于上界 10000 → 失败", () => {
+    expect(yearParamSchema.safeParse("10000").success).toBe(false);
+  });
+  it("空串 → 失败", () => {
+    expect(yearParamSchema.safeParse("").success).toBe(false);
   });
 });

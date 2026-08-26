@@ -78,6 +78,16 @@ describe("GET /api/records", () => {
     const res = await recordsGET(makeReq("http://localhost/api/records?status=doing"));
     expect(res.status).toBe(422);
   });
+
+  it("数据库异常 → 500（内部错误统一格式，生产环境脱敏）", async () => {
+    const spy = vi.spyOn(db, "execute").mockRejectedValueOnce(new Error("db down"));
+    const res = await recordsGET(makeReq("http://localhost/api/records"));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    // 生产环境下 5xx 统一脱敏为 internal_error，不暴露原始错误
+    expect(body.error).toBe("服务器内部错误");
+    spy.mockRestore();
+  });
 });
 
 describe("GET /api/stats", () => {
@@ -89,6 +99,15 @@ describe("GET /api/stats", () => {
     expect(Array.isArray(body.years)).toBe(true);
     // 带边缘缓存头
     expect(res.headers.get("Cache-Control")).toContain("s-maxage=60");
+  });
+
+  it("数据库异常 → 500（内部错误统一格式，生产环境脱敏）", async () => {
+    const spy = vi.spyOn(db, "execute").mockRejectedValueOnce(new Error("db down"));
+    const res = await statsGET(makeReq("http://localhost/api/stats"));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("服务器内部错误");
+    spy.mockRestore();
   });
 });
 

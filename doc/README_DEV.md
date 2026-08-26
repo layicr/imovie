@@ -159,29 +159,32 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 
 ## 八、测试体系
 
-`test/` 目录为独立自动化测试套件，**不改动应用源码**，合计 **102 例**：
+`test/` 目录为独立自动化测试套件，**不改动应用源码**，合计 **197 例**：
 
 | 维度 | 框架 | 文件 | 用例 | 说明 |
 |------|------|------|------|------|
-| 单元 | Vitest | `test/unit/*.test.ts` | 23 | 纯函数：Zod 校验、海报 URL、配置常量 |
-| 功能 | Vitest | `test/functional/*.test.ts` | 55 | 内存 `:memory:` 库查询、API 路由、中间件安全（含安全 6 例） |
-| UI e2e | Playwright | `test/e2e/ui.spec.ts` | 24 | Web 桌面端 + 移动端真实界面 |
+| 单元 | Vitest | `test/unit/*.test.ts` | 66 | 纯函数：Zod 校验（`listQuerySchema` + `yearParamSchema`）、错误处理、海报 URL、配置常量、数据库连接、统计配置 |
+| 功能 | Vitest | `test/functional/*.test.ts` | 75 | 内存 `:memory:` 库查询（33）、API 路由（21）、中间件安全（21） |
+| UI e2e | Playwright | `test/e2e/ui.spec.ts` | 56 | Web 桌面端（1280×800）+ 移动端（390×844）真实界面与响应式 |
 
-> 最近一次全量运行（2026-08-18）：Vitest `Test Files 6 passed (6)`、`Tests 78 passed (78)`，耗时 1.63s（单元 + 功能）；UI e2e 24 例另计（需联网拉起 `next dev`）。
+> 最近一次全量运行（2026-08-26）：Vitest `Test Files 9 passed (9)`、`Tests 141 passed (141)`，耗时 2.85s（单元 + 功能）；Playwright `56 passed`（2 例移动端偶发加载超时，retry 通过，3.8min）。**零失败。**
 
 ### 设计要点
 1. **不连真实库**：功能测试基于 `:memory:` fixture（`test/fixtures/db.ts` 读 `data/schema.sql` 建表 + 造数据），断言精确、确定、隔离。
 2. **直接调用 Handler**：API 路由用 `new NextRequest(url)` 直接 `await GET(req)`；中间件用 `await middleware(req)`，均无需启动 server。
 3. **状态隔离**：`listFacets` 缓存用 `invalidateFacets()` 重置；中间件模块用 `vi.resetModules()` 重载，清空计数 Map。
-4. **离线 + 快速**：Vitest 无 IO 依赖，`npm test` 秒级完成；Playwright 拉起 `next dev`，不依赖外链图加载断言（导航用 `domcontentloaded`）。
+4. **双模式错误校验**：`lib/api-error.ts` 在 `NODE_ENV=production` 下对 5xx 统一脱敏为 `internal_error`，测试同时验证开发/生产两种模式下的文案行为。
+5. **离线 + 快速**：Vitest 无 IO 依赖，`npm test` 秒级完成；Playwright 拉起 `next dev`，不依赖外链图加载断言（导航用 `domcontentloaded`，移动端 describe 块用 `beforeEach` 强制 390×844 视口确保响应式类生效）。
 
 ### 运行
 ```bash
 npm test                 # Vitest（单元 + 功能，离线）
-npx playwright test      # UI e2e（需联网，自动拉起 dev server）
+npm run test:watch       # Vitest 监听模式
+npx playwright test               # UI e2e（需联网，自动拉起 dev server）
+npx playwright test --project=mobile   # 仅移动端
 ```
 
-> 详见 [test/README.md](./../test/README.md) 与 [test/REPORT-2026-08-18.md](./../test/REPORT-2026-08-18.md)。
+> 详见 [test/README.md](./../test/README.md) 与 [test/REPORT-2026-08-26.md](./../test/REPORT-2026-08-26.md)。
 
 ---
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getYearReport } from "@/lib/queries";
 import { apiError, apiErrorFromUnknown } from "@/lib/api-error";
+import { yearParamSchema } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -10,15 +11,11 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { year: string } }
 ) {
-  const raw = params.year;
-  // 严格校验：必须是 4 位纯数字年份，拒绝 "2026abc" 这类会被 Number 截断的输入。
-  if (!/^\d{4}$/.test(raw)) {
+  const parsed = yearParamSchema.safeParse(params.year);
+  if (!parsed.success) {
     return apiError("invalid_year", 400, undefined, req);
   }
-  const year = Number(raw);
-  if (year < 1900 || year > 9999) {
-    return apiError("invalid_year", 400, undefined, req);
-  }
+  const year = parsed.data;
   try {
     const db = await getDb();
     const data = await getYearReport(db, year);

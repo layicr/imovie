@@ -11,7 +11,7 @@ import {
 import { setupTestDb, type SeedItem, type SeedRecord } from "../fixtures/db";
 import type { Client } from "@libsql/client";
 
-// 造数据：7 部影片 + 7 条观影记录
+// 造数据：8 部影片 + 8 条观影记录
 // 设计覆盖：
 //  - status: 4 watched / 3 plan（同一 item_id 只一条记录，符合 UNIQUE(user_id, item_id)）
 //  - media_type: movie / tv 都有
@@ -111,6 +111,19 @@ const ITEMS: SeedItem[] = [
     douban_rating: null,
     tmdb_rating: null,
   },
+  {
+    item_id: "tt8",
+    media_type: "movie",
+    title: "异常记录",
+    original_title: "Weird Record",
+    year: 2023,
+    poster_path: "/p8.jpg",
+    genres: "剧情",
+    country: "美国",
+    release_date: "2023-02-01",
+    douban_rating: 8.0,
+    tmdb_rating: 7.5,
+  },
 ];
 
 const RECORDS: SeedRecord[] = [
@@ -121,6 +134,8 @@ const RECORDS: SeedRecord[] = [
   { item_id: "tt5", status: "plan", rating: null, tags: "经典/喜剧", created_at: "2024-01-01 10:00:00" },
   { item_id: "tt6", status: "plan", rating: null, tags: "待补", created_at: "2025-01-01 10:00:00" },
   { item_id: "tt7", status: "plan", rating: null, tags: "重温", created_at: "2024-05-01 10:00:00" },
+  // watched 但 watched_at 为 NULL：应被 getYearReport 的 IS NOT NULL 过滤排除
+  { item_id: "tt8", status: "watched", rating: 6, watched_at: null, created_at: "2023-02-01 10:00:00" },
 ];
 
 let db: Client;
@@ -131,15 +146,15 @@ beforeEach(async () => {
 });
 
 describe("listRecords - 筛选", () => {
-  it("无筛选时返回全部 7 条记录", async () => {
+  it("无筛选时返回全部 8 条记录", async () => {
     const { records, total } = await listRecords(db, {});
-    expect(total).toBe(7);
-    expect(records).toHaveLength(7);
+    expect(total).toBe(8);
+    expect(records).toHaveLength(8);
   });
 
-  it("按 status=watched 过滤，仅返回 4 条已看", async () => {
+  it("按 status=watched 过滤，仅返回已看记录（含 tt8）", async () => {
     const { records, total } = await listRecords(db, { status: "watched" });
-    expect(total).toBe(4);
+    expect(total).toBe(5); // tt1-tt4 + tt8
     expect(records.every((r) => r.status === "watched")).toBe(true);
   });
 
@@ -154,11 +169,11 @@ describe("listRecords - 筛选", () => {
     expect(total).toBe(3);
   });
 
-  it("按 year=2023 过滤，命中 tt2、tt3 两条记录", async () => {
+  it("按 year=2023 过滤，命中 tt2、tt3、tt8 三条记录", async () => {
     const { records, total } = await listRecords(db, { year: 2023 });
-    expect(total).toBe(2);
+    expect(total).toBe(3);
     const ids = records.map((r) => r.item.item_id).sort();
-    expect(ids).toEqual(["tt2", "tt3"]);
+    expect(ids).toEqual(["tt2", "tt3", "tt8"]);
   });
 
   it("按 genre=科幻 模糊匹配（含「/」分隔），命中 tt1、tt3", async () => {
@@ -179,9 +194,9 @@ describe("listRecords - 筛选", () => {
     expect(records[0].item.item_id).toBe("tt3");
   });
 
-  it("组合筛选：status=watched 且 year=2023 返回 2 条", async () => {
+  it("组合筛选：status=watched 且 year=2023 返回 3 条", async () => {
     const { total } = await listRecords(db, { status: "watched", year: 2023 });
-    expect(total).toBe(2);
+    expect(total).toBe(3);
   });
 });
 
@@ -224,7 +239,7 @@ describe("listRecords - 排序", () => {
 describe("listRecords - 分页", () => {
   it("limit=2 且默认 page=1 返回前 2 条", async () => {
     const { records, total } = await listRecords(db, { limit: 2 });
-    expect(total).toBe(7);
+    expect(total).toBe(8);
     expect(records).toHaveLength(2);
   });
 
@@ -237,10 +252,10 @@ describe("listRecords - 分页", () => {
     expect(ids1.filter((id) => ids2.includes(id))).toHaveLength(0);
   });
 
-  it("limit=0 表示不限制，返回全部 7 条", async () => {
+  it("limit=0 表示不限制，返回全部 8 条", async () => {
     const { records, total } = await listRecords(db, { limit: 0 });
-    expect(total).toBe(7);
-    expect(records).toHaveLength(7);
+    expect(total).toBe(8);
+    expect(records).toHaveLength(8);
   });
 
   it("page<1 视为 1，不报错", async () => {
@@ -311,11 +326,11 @@ describe("getRecord - 详情", () => {
 });
 
 describe("getReport - 年报聚合", () => {
-  it("overview 统计：已看总数 4、今年已看、平均评分", async () => {
+  it("overview 统计：已看总数 5、平均评分", async () => {
     const report = await getReport(db);
-    expect(report.overview.totalWatched).toBe(4);
-    // 平均评分 = (9+8+7+10)/4 = 8.5
-    expect(report.overview.avgRating).toBeCloseTo(8.5, 5);
+    expect(report.overview.totalWatched).toBe(5); // tt1-tt4 + tt8(watched)
+    // 平均评分 = (9+8+7+10+6)/5 = 8.0
+    expect(report.overview.avgRating).toBeCloseTo(8.0, 5);
   });
 
   it("years 按 watched_at 年份分组降序，且各年 count 正确", async () => {
@@ -367,5 +382,38 @@ describe("getYearReport - 年份下钻（按月分组）", () => {
     expect(allIds).toContain("tt2");
     expect(allIds).toContain("tt3");
     expect(yr.total).toBe(2);
+  });
+
+  it("watched_at 为 NULL 的 watched 记录被排除（IS NOT NULL 守卫）", async () => {
+    // tt8 是 watched 且 year=2023，但 watched_at 为 NULL，不应进入年份下钻
+    const yr = await getYearReport(db, 2023);
+    const allIds = yr.months.flatMap((m) => m.items.map((i) => i.item.item_id));
+    expect(allIds).not.toContain("tt8");
+    expect(yr.total).toBe(2); // 仍为 tt2、tt3 两条
+  });
+});
+
+describe("listRecords - 排序 NULLS LAST 二级键", () => {
+  it("按 douban_rating 降序时，NULL 值排在末尾而非报错", async () => {
+    const { records } = await listRecords(db, { sort: "douban_rating", order: "desc" });
+    const rated = records.filter((r) => r.item.douban_rating != null);
+    const unrated = records.filter((r) => r.item.douban_rating == null);
+    // 有评分部分降序
+    const ratedSorted = [...rated.map((r) => r.item.douban_rating as number)].sort((a, b) => b - a);
+    expect(rated.map((r) => r.item.douban_rating)).toEqual(ratedSorted);
+    // 无评分记录全部位于数组末尾
+    expect(records.slice(records.length - unrated.length).map((r) => r.rec_id))
+      .toEqual(expect.arrayContaining(unrated.map((r) => r.rec_id)));
+  });
+
+  it("按 release_date 升序时，NULL release_date 排在末尾", async () => {
+    const { records } = await listRecords(db, { sort: "release_date", order: "asc" });
+    const withDate = records.filter((r) => r.item.release_date != null);
+    const withoutDate = records.filter((r) => r.item.release_date == null);
+    const dates = withDate.map((r) => r.item.release_date as string);
+    const sortedAsc = [...dates].sort();
+    expect(dates).toEqual(sortedAsc);
+    expect(records.slice(records.length - withoutDate.length).map((r) => r.rec_id))
+      .toEqual(expect.arrayContaining(withoutDate.map((r) => r.rec_id)));
   });
 });

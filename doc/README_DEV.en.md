@@ -159,29 +159,32 @@ Two tables (defined in `data/schema.sql`), **no physical foreign keys, only app-
 
 ## 8. Test Suite
 
-The `test/` directory is a standalone automated test suite that **does not modify application source**; **102 cases** in total:
+The `test/` directory is a standalone automated test suite that **does not modify application source**; **197 cases** in total:
 
 | Layer | Framework | Files | Cases | Notes |
 |-------|-----------|-------|-------|-------|
-| Unit | Vitest | `test/unit/*.test.ts` | 23 | Pure functions: Zod validation, poster URL, config constants |
-| Functional | Vitest | `test/functional/*.test.ts` | 55 | In-memory `:memory:` DB queries, API routes, middleware security (incl. 6 security cases) |
-| UI e2e | Playwright | `test/e2e/ui.spec.ts` | 24 | Web desktop + mobile real UI |
+| Unit | Vitest | `test/unit/*.test.ts` | 66 | Pure functions: Zod validation (`listQuerySchema` + `yearParamSchema`), error handling, poster URL, config constants, DB connection, analytics config |
+| Functional | Vitest | `test/functional/*.test.ts` | 75 | In-memory `:memory:` DB queries (33), API routes (21), middleware security (21) |
+| UI e2e | Playwright | `test/e2e/ui.spec.ts` | 56 | Web desktop (1280×800) + mobile (390×844) real UI and responsive behavior |
 
-> Latest full run (2026-08-18): Vitest `Test Files 6 passed (6)`, `Tests 78 passed (78)`, 1.63s (unit + functional); UI e2e 24 cases counted separately (needs network to launch `next dev`).
+> Latest full run (2026-08-26): Vitest `Test Files 9 passed (9)`, `Tests 141 passed (141)`, 2.85s (unit + functional); Playwright `56 passed` (2 mobile cases flaky on load timeout, passed on retry, 3.8min). **Zero failures.**
 
 ### Design notes
 1. **No real DB**: functional tests use an in-memory `:memory:` fixture (`test/fixtures/db.ts` reads `data/schema.sql` to build tables + seed data) for precise, deterministic, isolated assertions.
 2. **Direct Handler calls**: API routes call `new NextRequest(url)` then `await GET(req)`; middleware uses `await middleware(req)` — no server startup needed.
 3. **State isolation**: `listFacets` cache is reset via `invalidateFacets()`; middleware modules are reloaded with `vi.resetModules()` to clear the counting Map.
-4. **Offline & fast**: Vitest has no IO dependency and finishes in seconds; Playwright launches `next dev` and does not depend on external image loading for assertions (navigation uses `domcontentloaded`).
+4. **Dual-mode error check**: `lib/api-error.ts` masks 5xx as `internal_error` under `NODE_ENV=production`; tests verify both dev and prod message behavior.
+5. **Offline & fast**: Vitest has no IO dependency and finishes in seconds; Playwright launches `next dev` and does not depend on external image loading for assertions (navigation uses `domcontentloaded`; the mobile describe block uses a `beforeEach` to force a 390×844 viewport so responsive classes take effect).
 
 ### Run
 ```bash
 npm test                 # Vitest (unit + functional, offline)
-npx playwright test      # UI e2e (needs network, auto-starts dev server)
+npm run test:watch       # Vitest watch mode
+npx playwright test               # UI e2e (needs network, auto-starts dev server)
+npx playwright test --project=mobile   # Mobile only
 ```
 
-> See [test/README.md](../test/README.md) and [test/REPORT-2026-08-18.md](../test/REPORT-2026-08-18.md) for details.
+> See [test/README.md](../test/README.md) and [test/REPORT-2026-08-26.md](../test/REPORT-2026-08-26.md) for details.
 
 ---
 
