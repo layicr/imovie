@@ -123,7 +123,7 @@ test/
 > 每个用例用 `vi.resetModules()` 重载 middleware，确保从干净计数 Map 与正确 env 阈值开始；断言不依赖具体阈值数字，只验证「前若干次放行，之后持续 429」。
 > 限流 Map 已加 `MAX_BUCKETS=2000` 上限与近似 LRU 淘汰，防止异常 IP 风暴撑爆内存。
 
-### UI 端到端测试（56 例）
+### UI 端到端测试（58 例）
 
 `test/e2e/ui.spec.ts`，两个 project 各执行一遍（`web-desktop` 1280×800 + `mobile` 390×844 触摸），共 **58 例**（web 29 + mobile 29）：
 

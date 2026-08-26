@@ -70,10 +70,11 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 |------|--------|------|
 | `DATABASE_URL` | `file:./data/local.db` | 本地文件或 `libsql://<实例>.turso.io` |
 | `TURSO_AUTH_TOKEN` | 空 | 远程实例鉴权令牌（本地留空） |
-| `INCLUDE_LOCAL_DB` | `true` | `false` 时跳过本地 `data/` 打包（用 Turso 时设） |
 | `SITE_PASSWORD` | 空 | 设置后全站需 HTTP Basic 认证 |
 | `RATE_LIMIT` | `120` | 每 IP 每 60s 全局请求上限（超 429） |
 | `AUTH_FAIL_LIMIT` | `20` | 每 IP 每 60s 认证失败上限（超 429，仅设密码时生效） |
+
+> 是否把本地 `data/local.db` 打包进 Serverless 函数已由 `next.config.mjs` **依据 `DATABASE_URL` 自动判断**（无需手动开关）：`file:` 或未设 → 自动打包；`libsql://` 远程 → 自动跳过，避免无效体积。旧的环境变量 `INCLUDE_LOCAL_DB` 已废弃。
 
 > `.env.example` 为模板（无真实值），随仓库提交；`.env.local` 含真实密钥，**必须加进 `.gitignore`**，切勿提交。
 
@@ -144,6 +145,7 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 ## 七、数据访问与安全
 
 - **连接与建表**：`lib/db.ts` 单例连接；首次连接按 `schema.sql` 幂等建表，建表结果用模块级 `schemaReady` Promise 缓存，整个进程只执行一次，且失败可自动重试。连接异常时错误信息经 `maskDbUrl()` 脱敏（远程 `?authToken=***`、本地仅保留文件名），避免泄露令牌或绝对路径。
+- **Vercel 只读文件系统兼容**：`file:` 模式下，若源目录不可写（如 Vercel `/var/task` 只读、libsql 默认可写打开会因无法建 journal 而连接失败），`lib/db.ts` 会把 `data/local.db` 复制到可写的 `/tmp/imovie_local.db` 再打开（仅当副本缺失或大小变化时复制）。只读展示站无需真实写入，故安全；本地可写环境自动回退直接打开源文件。
 - **查询层**：`lib/queries.ts` 仅含 `SELECT` 函数（列表/筛选/搜索、侧栏维度、详情、年报总览、年报分组），全部使用参数化占位符，动态排序走白名单枚举，**零 SQL 注入**。
 - **维度缓存**：`listFacets` 有模块级 5 分钟 TTL 缓存（`facetsCache`），避免每次列表请求重复扫描；写入后调用 `invalidateFacets()` 可立即刷新。
 - **写库隔离**：写入逻辑 `ensureItem` / `upsertRecord` 仅定义在 `scripts/seed.ts` 内，不导入到应用层，保证线上运行态不可写。
@@ -159,15 +161,15 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 
 ## 八、测试体系
 
-`test/` 目录为独立自动化测试套件，**不改动应用源码**，合计 **197 例**：
+`test/` 目录为独立自动化测试套件，**不改动应用源码**，合计 **199 例**：
 
 | 维度 | 框架 | 文件 | 用例 | 说明 |
 |------|------|------|------|------|
 | 单元 | Vitest | `test/unit/*.test.ts` | 66 | 纯函数：Zod 校验（`listQuerySchema` + `yearParamSchema`）、错误处理、海报 URL、配置常量、数据库连接、统计配置 |
 | 功能 | Vitest | `test/functional/*.test.ts` | 75 | 内存 `:memory:` 库查询（33）、API 路由（21）、中间件安全（21） |
-| UI e2e | Playwright | `test/e2e/ui.spec.ts` | 56 | Web 桌面端（1280×800）+ 移动端（390×844）真实界面与响应式 |
+| UI e2e | Playwright | `test/e2e/ui.spec.ts` | 58 | Web 桌面端（29）× 移动端（29），共 58 |
 
-> 最近一次全量运行（2026-08-26）：Vitest `Test Files 9 passed (9)`、`Tests 141 passed (141)`，耗时 2.85s（单元 + 功能）；Playwright `56 passed`（2 例移动端偶发加载超时，retry 通过，3.8min）。**零失败。**
+> 最近一次全量运行（2026-08-26）：Vitest `Test Files 9 passed (9)`、`Tests 141 passed (141)`，耗时 1.6s（单元 + 功能）；Playwright `58 passed`（0 flaky）。**零失败。**
 
 ### 设计要点
 1. **不连真实库**：功能测试基于 `:memory:` fixture（`test/fixtures/db.ts` 读 `data/schema.sql` 建表 + 造数据），断言精确、确定、隔离。
@@ -200,8 +202,8 @@ NEXT_PUBLIC_SITE_URL=https://imovie.lyc.la
 ## 九、部署与运维
 
 ### Vercel 部署
-1. **环境变量**（平台配置，不要写进 git）：`DATABASE_URL`(Turso)、`TURSO_AUTH_TOKEN`、`SITE_PASSWORD`、`RATE_LIMIT`、`AUTH_FAIL_LIMIT`、`INCLUDE_LOCAL_DB=false`。
-2. **本地文件模式局限**：Serverless 只读文件系统 + 多实例，本地 `file:` 库会读到打包快照、运行期写入失败、实例间不共享。**生产必须用 Turso 远程库**。
+1. **环境变量**（平台配置，不要写进 git）：`DATABASE_URL`、`SITE_PASSWORD`、`RATE_LIMIT`、`AUTH_FAIL_LIMIT`（用远程 Turso 时再加 `TURSO_AUTH_TOKEN`）。是否打包本地 `data/` 由 `DATABASE_URL` 自动判断（见第三节），**无需再设 `INCLUDE_LOCAL_DB`**。
+2. **本地文件模式可用**：本站为只读展示站，Vercel 上可直接用 `DATABASE_URL=file:./data/local.db`。原理：`next.config.mjs` 的 `outputFileTracingIncludes` 把 `data/local.db` + `schema.sql` 打包进每个查库的 Serverless 函数（页面与 `/api/**` 都要列）；运行期 `lib/db.ts` 检测到 `/var/task` 只读后自动复制到可写 `/tmp` 再打开。局限：多实例各自持有 `/tmp` 副本、互相不共享，且每次冷启动需复制一次（几 MB）。若数据更新频繁或需多实例共享，才切换到 Turso 远程库（`DATABASE_URL=libsql://...`）。
 3. **测试不进生产**：Vitest/Playwright 为 devDependency，不被打进运行时 bundle；CI 只跑 `npm test`（离线），**不要**让部署流程跑 `playwright test`（需浏览器二进制 + 外链联网，CI 必失败）。
 4. **`.gitignore` 必须忽略**：`.env*.local`、`*.db*`、`data/*.db`、测试报告（`test/.playwright-report.json`、`test-results/`），避免密钥与私人数据入库。
 
