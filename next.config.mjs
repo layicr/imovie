@@ -1,4 +1,16 @@
 /** @type {import('next').NextConfig} */
+
+// 是否走本地文件库（与 lib/db.ts 判断一致）：无 DATABASE_URL 或 file: 开头 → 本地。
+// 本地文件库需要把 data/local.db 与 schema.sql 打包进 Serverless 函数；
+// libsql:// 等远程库则无需本地文件，跳过打包，避免无效体积。
+const useLocalDb =
+  !process.env.DATABASE_URL || process.env.DATABASE_URL.startsWith("file:");
+
+// data 目录随项目入库的文件仅两个（data/ 下其余内容不应上传）：
+//   - data/local.db   运行必需的只读数据库（见 lib/db.ts）
+//   - data/schema.sql 建表用的 DDL（见 lib/db.ts applySchema）
+const dataTraceFiles = ["./data/local.db", "./data/schema.sql"];
+
 const nextConfig = {
   // 隐藏 X-Powered-By 响应头，避免泄露技术栈版本
   poweredByHeader: false,
@@ -15,15 +27,19 @@ const nextConfig = {
     ],
   },
 
-  // 运行期由 lib/db.ts 通过 fs 动态打开 data/local.db（无 import 链），
+  // 运行期由 lib/db.ts 通过 fs 动态打开 data/ 下的文件（无 import 链），
   // Next.js 默认不会把它打包进 Serverless 函数。显式声明将其纳入 trace，
-  // 否则 Vercel 上读到的会是 connect() 时新建的空库 → 无数据。
-  // 启用 Turso 等远程数据库时，不再读取本地文件：把 INCLUDE_LOCAL_DB 设为
-  // "false"（Vercel 项目环境变量）即可关闭此打包规则，避免无效体积。
+  // 否则 Vercel 上读到的会是 connect() 时新建的空库（或找不到文件）→ 无数据。
+  // 关键点：页面（Server Component：/、/detail/[id]、/search、/report）与
+  // /api/** 都会查库，必须**同时**把这些入口都列入，否则只有 API 函数能拿到文件。
   experimental: {
-    ...(process.env.INCLUDE_LOCAL_DB !== "false" && {
+    ...(useLocalDb && {
       outputFileTracingIncludes: {
-        "/api/**/*": ["./data/**/*"],
+        "/": dataTraceFiles,
+        "/detail/[id]": dataTraceFiles,
+        "/search": dataTraceFiles,
+        "/report": dataTraceFiles,
+        "/api/**/*": dataTraceFiles,
       },
     }),
   },

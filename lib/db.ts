@@ -21,7 +21,30 @@ async function connect(): Promise<Client> {
     const file = DB_URL.slice("file:".length);
     const abs = path.isAbsolute(file) ? file : path.resolve(process.cwd(), file);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    url = `file:${abs}`;
+
+    // Vercel 等 Serverless 运行期 /var/task 为只读文件系统，libsql 默认以可写
+    // 模式打开会尝试创建 journal/WAL 文件而连接失败。将打包进来的只读 db 复制到
+    // 可写的 /tmp 后再打开，即可正常 SELECT（只读展示站无需真实写入）。
+    // 本地可写环境若 /tmp 不可写，stat/copyFile 抛错则回退直接打开原路径，无副作用。
+    // 优化：仅当 /tmp 副本缺失或大小与源不一致时才复制（warm 实例复用、源未变则
+    // 跳过），避免每次冷启动重复拷贝几 MB 的库。
+    let openPath = abs;
+    const tmpPath = path.join("/tmp", "local.db");
+    try {
+      const srcStat = await fs.promises.stat(abs);
+      let needCopy = true;
+      try {
+        const dstStat = await fs.promises.stat(tmpPath);
+        if (dstStat.size === srcStat.size) needCopy = false;
+      } catch {
+        // /tmp 副本不存在，需要复制
+      }
+      if (needCopy) await fs.promises.copyFile(abs, tmpPath);
+      openPath = tmpPath;
+    } catch {
+      openPath = abs;
+    }
+    url = `file:${openPath}`;
   }
 
   const client = createClient({ url, authToken: AUTH_TOKEN });
