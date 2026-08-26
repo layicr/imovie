@@ -66,8 +66,8 @@ test/
 
 ## 测试用例清单
 
-> 合计 **197 例**：单元 66 + 功能 75（含安全 21）+ UI e2e 56。
-> 最近一次全量运行（2026-08-26）：`Vitest 9 files / 141 passed`，`Playwright 56 passed`（2 例偶发 flaky，retry 通过）。
+> 合计 **199 例**：单元 66 + 功能 75（含安全 21）+ UI e2e 58（web 29 + mobile 29）。
+> 最近一次全量运行（2026-08-26）：`Vitest 9 files / 141 passed`，`Playwright 58 passed`（0 flaky）。
 
 ### 单元测试（66 例）
 
@@ -125,7 +125,7 @@ test/
 
 ### UI 端到端测试（56 例）
 
-`test/e2e/ui.spec.ts`，两个 project 各执行一遍（`web-desktop` 1280×800 + `mobile` 390×844 触摸），共 **56 例**：
+`test/e2e/ui.spec.ts`，两个 project 各执行一遍（`web-desktop` 1280×800 + `mobile` 390×844 触摸），共 **58 例**（web 29 + mobile 29）：
 
 | 维度 | 覆盖点 |
 |------|--------|

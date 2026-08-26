@@ -7,6 +7,7 @@ import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 import { translations } from "@/lib/i18n/translations";
 import FloatingActions from "@/components/FloatingActions";
 import Analytics from "@/components/Analytics";
+import { getSiteUrl } from "@/lib/seo";
 
 // 字体自托管：Inter（正文）+ Bebas Neue（大标题）经 next/font 在构建期下载并同源托管，
 // 消除运行时外链与 CLS；中文 Noto Sans SC 仍由 <link> 引入（CJK 全量字形体积过大，不适宜打包）。
@@ -22,11 +23,46 @@ const bebas = Bebas_Neue({
   display: "swap",
 });
 
+const siteUrl = getSiteUrl();
+
 // 站点标题/描述取自 i18n 字典（translations.zh / translations.en），
 // 中英文统一维护，避免硬编码；默认输出中文，英文版通过 lang="en" 的 meta 提供给搜索引擎。
 export const metadata: Metadata = {
-  title: translations.zh["site.title"],
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: translations.zh["site.title"],
+    template: "%s | iMOVIE",
+  },
   description: translations.zh["site.description"],
+  keywords: ["观影记录", "电影", "剧集", "movie", "tv", "watchlist"],
+  authors: [{ name: "iMOVIE" }],
+  creator: "iMOVIE",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: translations.zh["site.title"],
+    description: translations.zh["site.description"],
+    type: "website",
+    locale: "zh_CN",
+    siteName: "iMOVIE",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: translations.zh["site.title"],
+    description: translations.zh["site.description"],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -41,18 +77,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link
           href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap"
           rel="stylesheet"
-        />
-        {/* 英文版元信息：用 lang="en" 区分语言，供搜索引擎/社交分享识别；文案取自 i18n 字典 */}
-        <meta
-          name="description"
-          lang="en"
-          content={translations.en["site.description"]}
-        />
-        <meta property="og:title" lang="en" content={translations.en["site.title"]} />
-        <meta
-          property="og:description"
-          lang="en"
-          content={translations.en["site.description"]}
         />
       </head>
       <body className="flex min-h-screen flex-col bg-ink text-white">

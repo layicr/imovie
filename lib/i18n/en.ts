@@ -92,4 +92,8 @@ export const en: Record<string, string> = {
   "fb.button": "Feedback",
 
   "top.aria": "Back to top",
+
+  "notFound.title": "This page or movie record was not found.",
+  "notFound.subtitle": "It may have been removed, or the link is incorrect.",
+  "notFound.backHome": "Back to Home",
 };

@@ -89,6 +89,10 @@ export const zh: Record<string, string> = {
   "detail.plot": "剧情简介",
 
   "fb.button": "反馈",
-  
+
   "top.aria": "返回顶部",
+
+  "notFound.title": "未找到该页面或影片记录。",
+  "notFound.subtitle": "它可能已被移除，或链接有误。",
+  "notFound.backHome": "返回首页",
 };

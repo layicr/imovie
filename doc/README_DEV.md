@@ -184,6 +184,15 @@ npx playwright test               # UI e2e（需联网，自动拉起 dev server
 npx playwright test --project=mobile   # 仅移动端
 ```
 
+### SEO 环境变量
+部署前确保设置 `NEXT_PUBLIC_SITE_URL`：
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://imovie.lyc.la
+```
+
+该变量用于 `metadataBase`、`canonical`、`sitemap`、`robots` 与 JSON-LD。本地开发未设置时自动回退到 `http://localhost:3000`，生产未设置将打印警告。
+
 > 详见 [test/README.md](./../test/README.md) 与 [test/REPORT-2026-08-26.md](./../test/REPORT-2026-08-26.md)。
 
 ---

@@ -184,6 +184,15 @@ npx playwright test               # UI e2e (needs network, auto-starts dev serve
 npx playwright test --project=mobile   # Mobile only
 ```
 
+### SEO Environment Variable
+Before deploying, set `NEXT_PUBLIC_SITE_URL`:
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://imovie.lyc.la
+```
+
+This variable is used for `metadataBase`, `canonical`, `sitemap`, `robots`, and JSON-LD structured data. It falls back to `http://localhost:3000` locally; in production a warning is logged if missing.
+
 > See [test/README.md](../test/README.md) and [test/REPORT-2026-08-26.md](../test/REPORT-2026-08-26.md) for details.
 
 ---
