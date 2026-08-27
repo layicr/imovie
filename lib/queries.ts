@@ -148,6 +148,8 @@ export interface Facets {
 
 // 维度几乎不变，但每次列表请求都会调用。用模块级 TTL 缓存避免重复扫描
 // （默认 5 分钟）；若有写入（新增/导入影片）后需立即刷新，可调用 invalidateFacets()。
+// 测试契约：功能测试（test/functional）在 beforeEach 调用本函数重置缓存，确保用例间
+// 内存库隔离、不串扰；改动缓存策略时须同步验证 test/functional 的 facets 用例。
 const FACETS_TTL = 5 * 60 * 1000;
 let facetsCache: { value: Facets; at: number } | null = null;
 

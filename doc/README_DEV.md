@@ -145,7 +145,7 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 ## 七、数据访问与安全
 
 - **连接与建表**：`lib/db.ts` 单例连接；首次连接按 `schema.sql` 幂等建表，建表结果用模块级 `schemaReady` Promise 缓存，整个进程只执行一次，且失败可自动重试。连接异常时错误信息经 `maskDbUrl()` 脱敏（远程 `?authToken=***`、本地仅保留文件名），避免泄露令牌或绝对路径。
-- **Vercel 只读文件系统兼容**：`file:` 模式下，若源目录不可写（如 Vercel `/var/task` 只读、libsql 默认可写打开会因无法建 journal 而连接失败），`lib/db.ts` 会把 `data/local.db` 复制到可写的 `/tmp/imovie_local.db` 再打开（仅当副本缺失或大小变化时复制）。只读展示站无需真实写入，故安全；本地可写环境自动回退直接打开源文件。
+- **Vercel 只读文件系统兼容**：`file:` 模式下，若源目录不可写（如 Vercel `/var/task` 只读、libsql 默认可写打开会因无法建 journal 而连接失败），`lib/db.ts` 会先把 `data/local.db` 复制到可写的 `/tmp/local.db` 再打开（复制前会 `mkdirSync('/tmp', {recursive:true})` 确保目录存在；仅当副本缺失或大小变化时复制）。只读展示站无需真实写入，故安全；本地可写环境复制失败会自动回退直接打开源文件。
 - **查询层**：`lib/queries.ts` 仅含 `SELECT` 函数（列表/筛选/搜索、侧栏维度、详情、年报总览、年报分组），全部使用参数化占位符，动态排序走白名单枚举，**零 SQL 注入**。
 - **维度缓存**：`listFacets` 有模块级 5 分钟 TTL 缓存（`facetsCache`），避免每次列表请求重复扫描；写入后调用 `invalidateFacets()` 可立即刷新。
 - **写库隔离**：写入逻辑 `ensureItem` / `upsertRecord` 仅定义在 `scripts/seed.ts` 内，不导入到应用层，保证线上运行态不可写。
@@ -169,7 +169,22 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 | 功能 | Vitest | `test/functional/*.test.ts` | 75 | 内存 `:memory:` 库查询（33）、API 路由（21）、中间件安全（21） |
 | UI e2e | Playwright | `test/e2e/ui.spec.ts` | 58 | Web 桌面端（29）× 移动端（29），共 58 |
 
-> 最近一次全量运行（2026-08-26）：Vitest `Test Files 9 passed (9)`、`Tests 141 passed (141)`，耗时 1.6s（单元 + 功能）；Playwright `58 passed`（0 flaky）。**零失败。**
+**实际文件清单（与代码一致）：**
+
+- `test/unit/validate.test.ts` — `listQuerySchema` / `yearParamSchema` 校验（枚举、coerce、limit 上限）
+- `test/unit/poster.test.ts` — `posterUrl` 构造（TMDb 相对路径 / 绝对链接原样返回 / 空值回退）
+- `test/unit/config.test.ts` — 分页常量与 `COUNTRY_OPTIONS`（含 LB/MT）边界
+- `test/unit/db.test.ts` — `getDb` 连接单例与失败重试（mock `@libsql/client`）
+- `test/unit/analytics.test.ts` — 第三方统计 ID 配置格式断言
+- `test/unit/api-error.test.ts` — 统一错误处理与开发/生产双模式文案
+- `test/functional/queries.test.ts` — 内存库：筛选/排序/分页、维度去重、详情、年报聚合、年份下钻
+- `test/functional/routes.test.ts` — API 路由：正常 / 422 / 500 与响应结构
+- `test/functional/security.test.ts` — 中间件限流 / Basic Auth / 错误响应不泄露内部细节
+- `test/e2e/ui.spec.ts` — Playwright UI 端到端（桌面 + 移动响应式）
+
+> 最近一次全量运行（2026-08-27，实测）：
+> - **Vitest**：`Test Files 9 passed (9)`、`Tests 141 passed (141)`、2.03s（单元 + 功能），**零失败**。
+> - **Playwright UI e2e**：`57 passed + 1 flaky`（共 58 例，3.2m），整体通过；1 例 flaky 为移动端导航跳转断言时机问题，重跑即通过。需浏览器二进制与外链联网，**单独运行** `npx playwright test`，CI 与 `npm test` 均不触达。
 
 ### 设计要点
 1. **不连真实库**：功能测试基于 `:memory:` fixture（`test/fixtures/db.ts` 读 `data/schema.sql` 建表 + 造数据），断言精确、确定、隔离。
@@ -195,7 +210,7 @@ NEXT_PUBLIC_SITE_URL=https://imovie.lyc.la
 
 该变量用于 `metadataBase`、`canonical`、`sitemap`、`robots` 与 JSON-LD。本地开发未设置时自动回退到 `http://localhost:3000`，生产未设置将打印警告。
 
-> 详见 [test/README.md](./../test/README.md) 与 [test/REPORT-2026-08-26.md](./../test/REPORT-2026-08-26.md)。
+> 详见 [test/README.md](./../test/README.md) 与测试报告 [REPORT-2026-08-27.md](./../test/REPORT-2026-08-27.md)（含 [REPORT-2026-08-26.md](./../test/REPORT-2026-08-26.md) 存档）。
 
 ---
 
@@ -203,7 +218,7 @@ NEXT_PUBLIC_SITE_URL=https://imovie.lyc.la
 
 ### Vercel 部署
 1. **环境变量**（平台配置，不要写进 git）：`DATABASE_URL`、`SITE_PASSWORD`、`RATE_LIMIT`、`AUTH_FAIL_LIMIT`（用远程 Turso 时再加 `TURSO_AUTH_TOKEN`）。是否打包本地 `data/` 由 `DATABASE_URL` 自动判断（见第三节），**无需再设 `INCLUDE_LOCAL_DB`**。
-2. **本地文件模式可用**：本站为只读展示站，Vercel 上可直接用 `DATABASE_URL=file:./data/local.db`。原理：`next.config.mjs` 的 `outputFileTracingIncludes` 把 `data/local.db` + `schema.sql` 打包进每个查库的 Serverless 函数（页面与 `/api/**` 都要列）；运行期 `lib/db.ts` 检测到 `/var/task` 只读后自动复制到可写 `/tmp` 再打开。局限：多实例各自持有 `/tmp` 副本、互相不共享，且每次冷启动需复制一次（几 MB）。若数据更新频繁或需多实例共享，才切换到 Turso 远程库（`DATABASE_URL=libsql://...`）。
+2. **本地文件模式可用**：本站为只读展示站，Vercel 上可直接用 `DATABASE_URL=file:./data/local.db`。原理：`next.config.mjs` 的 `outputFileTracingIncludes` 把 `data/local.db` + `schema.sql` 打包进每个查库的 Serverless 函数（页面与 `/api/**` 都要列）；运行期 `lib/db.ts` 检测到 `/var/task` 只读后自动复制到可写 `/tmp/local.db` 再打开。局限：多实例各自持有 `/tmp` 副本、互相不共享，且每次冷启动需复制一次（几 MB）。若数据更新频繁或需多实例共享，才切换到 Turso 远程库（`DATABASE_URL=libsql://...`）。
 3. **测试不进生产**：Vitest/Playwright 为 devDependency，不被打进运行时 bundle；CI 只跑 `npm test`（离线），**不要**让部署流程跑 `playwright test`（需浏览器二进制 + 外链联网，CI 必失败）。
 4. **`.gitignore` 必须忽略**：`.env*.local`、`*.db*`、`data/*.db`、测试报告（`test/.playwright-report.json`、`test-results/`），避免密钥与私人数据入库。
 

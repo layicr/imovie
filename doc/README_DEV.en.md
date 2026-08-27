@@ -145,7 +145,7 @@ Two tables (defined in `data/schema.sql`), **no physical foreign keys, only app-
 ## 7. Data Access & Security
 
 - **Connection & schema**: `lib/db.ts` singleton connection; on first connect it creates tables idempotently per `schema.sql`. The schema result is cached in a module-level `schemaReady` Promise so it runs only once per process, with auto-retry on failure. On connection failure the error message is masked by `maskDbUrl()` (remote `?authToken=***`, local keeps only the filename) to avoid leaking tokens or absolute paths.
-- **Vercel read-only FS compatibility**: in `file:` mode, if the source directory is unwritable (e.g. Vercel `/var/task` read-only — libsql's default writable open fails because it cannot create a journal), `lib/db.ts` copies `data/local.db` to writable `/tmp/imovie_local.db` before opening (copying only when the copy is missing or its size changed). A read-only showcase site needs no real writes, so this is safe; on a writable local environment it falls back to opening the source file directly.
+- **Vercel read-only FS compatibility**: in `file:` mode, if the source directory is unwritable (e.g. Vercel `/var/task` read-only — libsql's default writable open fails because it cannot create a journal), `lib/db.ts` first copies `data/local.db` to writable `/tmp/local.db` before opening (it runs `mkdirSync('/tmp', {recursive:true})` to ensure the directory exists, and copies only when the copy is missing or its size changed). A read-only showcase site needs no real writes, so this is safe; on a writable local environment a copy failure automatically falls back to opening the source file directly.
 - **Query layer**: `lib/queries.ts` contains only `SELECT` functions (list/filter/search, sidebar dimensions, detail, report overview, report grouping). All use parameterized placeholders, and dynamic ordering goes through a whitelist enum — **zero SQL injection**.
 - **Dimension cache**: `listFacets` has a module-level 5-minute TTL cache (`facetsCache`) to avoid rescanning on every list request; call `invalidateFacets()` after writes to refresh immediately.
 - **Write isolation**: write logic `ensureItem` / `upsertRecord` is defined only inside `scripts/seed.ts` and is never imported into the app layer, guaranteeing the production runtime is unwritable.
@@ -169,7 +169,22 @@ The `test/` directory is a standalone automated test suite that **does not modif
 | Functional | Vitest | `test/functional/*.test.ts` | 75 | In-memory `:memory:` DB queries (33), API routes (21), middleware security (21) |
 | UI e2e | Playwright | `test/e2e/ui.spec.ts` | 58 | Web desktop (29) × mobile (29), 58 total |
 
-> Latest full run (2026-08-26): Vitest `Test Files 9 passed (9)`, `Tests 141 passed (141)`, 1.6s (unit + functional); Playwright `58 passed` (0 flaky). **Zero failures.**
+**Actual file list (matches the code):**
+
+- `test/unit/validate.test.ts` — `listQuerySchema` / `yearParamSchema` validation (enum, coerce, limit cap)
+- `test/unit/poster.test.ts` — `posterUrl` construction (TMDb relative path / absolute URL passthrough / empty fallback)
+- `test/unit/config.test.ts` — paging constants and `COUNTRY_OPTIONS` (incl. LB/MT) boundaries
+- `test/unit/db.test.ts` — `getDb` connection singleton and retry-on-failure (mocks `@libsql/client`)
+- `test/unit/analytics.test.ts` — third-party analytics ID format assertions
+- `test/unit/api-error.test.ts` — unified error handling and dev/prod dual-mode messaging
+- `test/functional/queries.test.ts` — in-memory DB: filter/sort/paginate, dimension dedup, detail, report aggregate, year drill-down
+- `test/functional/routes.test.ts` — API routes: success / 422 / 500 and response structure
+- `test/functional/security.test.ts` — middleware rate-limit / Basic Auth / error responses without internal leaks
+- `test/e2e/ui.spec.ts` — Playwright UI end-to-end (desktop + mobile responsive)
+
+> Latest full run (2026-08-27, measured):
+> - **Vitest**: `Test Files 9 passed (9)`, `Tests 141 passed (141)`, 2.03s (unit + functional), **zero failures**.
+> - **Playwright UI e2e**: `57 passed + 1 flaky` (58 total, 3.2m), overall green; the 1 flaky is a mobile nav-redirect assertion-timing issue that passes on rerun. Needs browser binaries and external network, so run it **separately** with `npx playwright test` — CI and `npm test` do not touch it.
 
 ### Design notes
 1. **No real DB**: functional tests use an in-memory `:memory:` fixture (`test/fixtures/db.ts` reads `data/schema.sql` to build tables + seed data) for precise, deterministic, isolated assertions.
@@ -195,7 +210,7 @@ NEXT_PUBLIC_SITE_URL=https://imovie.lyc.la
 
 This variable is used for `metadataBase`, `canonical`, `sitemap`, `robots`, and JSON-LD structured data. It falls back to `http://localhost:3000` locally; in production a warning is logged if missing.
 
-> See [test/README.md](../test/README.md) and [test/REPORT-2026-08-26.md](../test/REPORT-2026-08-26.md) for details.
+> See [test/README.md](../test/README.md) for the test suite details.
 
 ---
 
@@ -203,7 +218,7 @@ This variable is used for `metadataBase`, `canonical`, `sitemap`, `robots`, and 
 
 ### Vercel deployment
 1. **Environment variables** (set on the platform, not in git): `DATABASE_URL`, `SITE_PASSWORD`, `RATE_LIMIT`, `AUTH_FAIL_LIMIT` (add `TURSO_AUTH_TOKEN` only when using remote Turso). Whether to bundle local `data/` is decided automatically by `DATABASE_URL` (see section 3) — **no need to set `INCLUDE_LOCAL_DB`**.
-2. **Local-file mode works**: since this is a read-only showcase site, you can use `DATABASE_URL=file:./data/local.db` on Vercel. How it works: `next.config.mjs` `outputFileTracingIncludes` bundles `data/local.db` + `schema.sql` into every DB-querying Serverless function (both pages and `/api/**`); at runtime `lib/db.ts` detects the read-only `/var/task` and copies the DB to writable `/tmp` before opening. Limitations: each instance holds its own `/tmp` copy (not shared), and a cold start copies the DB once (a few MB). Switch to a remote Turso instance (`DATABASE_URL=libsql://...`) only if you need frequent updates or shared state across instances.
+2. **Local-file mode works**: since this is a read-only showcase site, you can use `DATABASE_URL=file:./data/local.db` on Vercel. How it works: `next.config.mjs` `outputFileTracingIncludes` bundles `data/local.db` + `schema.sql` into every DB-querying Serverless function (both pages and `/api/**`); at runtime `lib/db.ts` detects the read-only `/var/task` and copies the DB to writable `/tmp/local.db` before opening. Limitations: each instance holds its own `/tmp` copy (not shared), and a cold start copies the DB once (a few MB). Switch to a remote Turso instance (`DATABASE_URL=libsql://...`) only if you need frequent updates or shared state across instances.
 3. **Tests stay out of production**: Vitest/Playwright are devDependencies and are not bundled into the runtime; CI runs only `npm test` (offline) — **do not** let the deploy flow run `playwright test` (needs browser binaries + external network, which fails in CI).
 4. **`.gitignore` must ignore**: `.env*.local`, `*.db*`, `data/*.db`, test reports (`test/.playwright-report.json`, `test-results/`) to avoid leaking secrets and private data into the repo.
 

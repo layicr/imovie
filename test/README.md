@@ -21,7 +21,7 @@ npx playwright test --project=mobile   # 仅移动端
 Vitest 配置见根目录 `vitest.config.ts`（`node` 环境、复用 `@/` 路径别名、`test/**/*.test.ts`）。
 Playwright 配置见根目录 `playwright.config.ts`（自动拉起 `next dev`、`workers:1`、`retries:1`）。
 
-> 注：`test/` 与 `bak/` 已在 `.gitignore` 中忽略，测试仅在本地运行，不会随部署上传。
+> 注：测试源码随仓库提交；`.gitignore` 仅忽略测试产物（`test/.playwright-report.json`、`test-results/`）。`bak/` 被忽略，不随部署上传。
 
 ## 设计原则
 
@@ -67,7 +67,7 @@ test/
 ## 测试用例清单
 
 > 合计 **199 例**：单元 66 + 功能 75（含安全 21）+ UI e2e 58（web 29 + mobile 29）。
-> 最近一次全量运行（2026-08-26）：`Vitest 9 files / 141 passed`，`Playwright 58 passed`（0 flaky）。
+> 最近一次全量运行（2026-08-27，实测）：`Vitest 9 files / 141 passed`（2.03s，零失败）；`Playwright 57 passed + 1 flaky`（共 58 例，3.2m，1 例 flaky 为移动端导航跳转断言时机问题，重跑即通过）。详见 [REPORT-2026-08-27.md](./REPORT-2026-08-27.md)。
 
 ### 单元测试（66 例）
 
