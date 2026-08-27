@@ -1,0 +1,11 @@
+先到douban-takeout-main，下载本人的数据
+
+创建一个日期，将对应：movie_done.json、movie_wish.json复制到里面
+
+修改config.json参数
+    doneFile
+    wishFile
+    tmdbApiKey
+    proxy
+    doubanCookie
+
