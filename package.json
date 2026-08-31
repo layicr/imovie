@@ -1,7 +1,7 @@
 {
   "name": "imovie_admin",
   "version": "1.0.0",
-  "description": "将豆瓣导出的观影数据（`movie_done.json` 已看 / `movie_wish.json` 想看）转换成可直接执行的\r SQL 文件，导入到 iMOVIE 的 SQLite 数据库（`imovie_items` + `imovie_records` 两张表）。",
+  "description": "将豆瓣导出的观影数据",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
