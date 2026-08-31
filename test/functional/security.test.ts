@@ -31,7 +31,7 @@ async function loadMiddleware(opts: {
   process.env.RATE_LIMIT = String(opts.rateLimit ?? 3);
   process.env.AUTH_FAIL_LIMIT = String(opts.authFailLimit ?? 2);
   vi.resetModules();
-  return (await import("@/middleware")).middleware;
+  return (await import("@/proxy")).proxy;
 }
 
 // 断言 status 序列：前两次放行（401/200），之后出现 429 且持续到最后

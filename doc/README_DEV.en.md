@@ -15,7 +15,7 @@ iMOVIE is a self-hosted **read-only** personal movie & TV tracking showcase. Wit
 
 | Layer | Choice | Notes |
 |-------|--------|-------|
-| Framework | Next.js 14 (App Router) | Pages + Route Handlers in one repo; SSR/CSR hybrid |
+| Framework | Next.js 16 (App Router) | Pages + Route Handlers in one repo; SSR/CSR hybrid |
 | Language | TypeScript (strict) | Full typing; frontend components and backend queries share `lib/types.ts` |
 | Database | libSQL (`@libsql/client`) | Local `file:` or remote Turso `libsql://`; business code is unaware of the switch |
 | Validation | Zod | All external input is validated by a schema before reaching SQL |
@@ -30,7 +30,7 @@ iMOVIE is a self-hosted **read-only** personal movie & TV tracking showcase. Wit
 Browser / Client
    │  HTTP (optional Basic Auth)
    ▼
-middleware.ts       Rate limit (fixed window + approximate LRU eviction) + HTTP Basic Auth + error masking
+proxy.ts       Rate limit (fixed window + approximate LRU eviction) + HTTP Basic Auth + error masking
    │
    ▼
 app/               Pages (Server Components query the DB directly) + api/* (Route Handlers)
@@ -149,8 +149,8 @@ Two tables (defined in `data/schema.sql`), **no physical foreign keys, only app-
 - **Query layer**: `lib/queries.ts` contains only `SELECT` functions (list/filter/search, sidebar dimensions, detail, report overview, report grouping). All use parameterized placeholders, and dynamic ordering goes through a whitelist enum — **zero SQL injection**.
 - **Dimension cache**: `listFacets` has a module-level 5-minute TTL cache (`facetsCache`) to avoid rescanning on every list request; call `invalidateFacets()` after writes to refresh immediately.
 - **Write isolation**: write logic `ensureItem` / `upsertRecord` is defined only inside `scripts/seed.ts` and is never imported into the app layer, guaranteeing the production runtime is unwritable.
-- **Site protection**: optional Basic Auth (`middleware.ts`) + production CSP / security response headers (`next.config.mjs`): `X-Content-Type-Options` / `X-Frame-Options: DENY` / `Referrer-Policy` / `Permissions-Policy` / `Content-Security-Policy` (includes `img-src` whitelist and `script-src` inline; dev needs `'unsafe-eval'`).
-- **Rate-limit middleware** (`middleware.ts`): under Edge Runtime, uses a module-level `Map` for fixed-window counting, with capacity protection:
+- **Site protection**: optional Basic Auth (`proxy.ts`) + production CSP / security response headers (`next.config.mjs`): `X-Content-Type-Options` / `X-Frame-Options: DENY` / `Referrer-Policy` / `Permissions-Policy` / `Content-Security-Policy` (includes `img-src` whitelist and `script-src` inline; dev needs `'unsafe-eval'`).
+- **Rate-limit middleware** (`proxy.ts`): under Edge Runtime, uses a module-level `Map` for fixed-window counting, with capacity protection:
   - Global: `RATE_LIMIT` requests / IP / 60s, `429` on exceed (with `Retry-After`).
   - Auth brute-force protection: `AUTH_FAIL_LIMIT` failures / IP / 60s, `429` on exceed; a successful auth clears that IP's failure counter.
   - Each request also runs `sweep()`: it drops expired buckets, and when the bucket count exceeds `MAX_BUCKETS=2000` it evicts the earliest-to-reset buckets (approximate LRU), preventing an IP storm from exhausting memory.
@@ -166,7 +166,7 @@ The `test/` directory is a standalone automated test suite that **does not modif
 | Layer | Framework | Files | Cases | Notes |
 |-------|-----------|-------|-------|-------|
 | Unit | Vitest | `test/unit/*.test.ts` | 66 | Pure functions: Zod validation (`listQuerySchema` + `yearParamSchema`), error handling, poster URL, config constants, DB connection, analytics config |
-| Functional | Vitest | `test/functional/*.test.ts` | 75 | In-memory `:memory:` DB queries (33), API routes (21), middleware security (21) |
+| Functional | Vitest | `test/functional/*.test.ts` | 75 | In-memory `:memory:` DB queries (33), API routes (21), Proxy security (21) |
 | UI e2e | Playwright | `test/e2e/ui.spec.ts` | 58 | Web desktop (29) × mobile (29), 58 total |
 
 **Actual file list (matches the code):**
@@ -179,7 +179,7 @@ The `test/` directory is a standalone automated test suite that **does not modif
 - `test/unit/api-error.test.ts` — unified error handling and dev/prod dual-mode messaging
 - `test/functional/queries.test.ts` — in-memory DB: filter/sort/paginate, dimension dedup, detail, report aggregate, year drill-down
 - `test/functional/routes.test.ts` — API routes: success / 422 / 500 and response structure
-- `test/functional/security.test.ts` — middleware rate-limit / Basic Auth / error responses without internal leaks
+- `test/functional/security.test.ts` — Proxy rate-limit / Basic Auth / error responses without internal leaks
 - `test/e2e/ui.spec.ts` — Playwright UI end-to-end (desktop + mobile responsive)
 
 > Latest full run (2026-08-27, measured):
@@ -188,8 +188,8 @@ The `test/` directory is a standalone automated test suite that **does not modif
 
 ### Design notes
 1. **No real DB**: functional tests use an in-memory `:memory:` fixture (`test/fixtures/db.ts` reads `data/schema.sql` to build tables + seed data) for precise, deterministic, isolated assertions.
-2. **Direct Handler calls**: API routes call `new NextRequest(url)` then `await GET(req)`; middleware uses `await middleware(req)` — no server startup needed.
-3. **State isolation**: `listFacets` cache is reset via `invalidateFacets()`; middleware modules are reloaded with `vi.resetModules()` to clear the counting Map.
+2. **Direct Handler calls**: API routes call `new NextRequest(url)` then `await GET(req)`; Proxy uses `await proxy(req)` — no server startup needed.
+3. **State isolation**: `listFacets` cache is reset via `invalidateFacets()`; proxy modules are reloaded with `vi.resetModules()` to clear the counting Map.
 4. **Dual-mode error check**: `lib/api-error.ts` masks 5xx as `internal_error` under `NODE_ENV=production`; tests verify both dev and prod message behavior.
 5. **Offline & fast**: Vitest has no IO dependency and finishes in seconds; Playwright launches `next dev` and does not depend on external image loading for assertions (navigation uses `domcontentloaded`; the mobile describe block uses a `beforeEach` to force a 390×844 viewport so responsive classes take effect).
 
@@ -245,5 +245,5 @@ lib/           db / queries (read-only) / config / poster / types / validate / a
 data/          schema.sql (table DDL) + local.db (runtime database, not committed)
 scripts/       seed.ts (one-time seed script; contains write functions but never touches the app layer)
 test/          unit / functional / e2e / fixtures (automated tests, see section 8)
-middleware.ts   Rate limit + HTTP Basic Auth + error masking
+proxy.ts   Rate limit + HTTP Basic Auth + error masking
 ```

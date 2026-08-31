@@ -1,3 +1,4 @@
+// app/search/page.tsx — 搜索页服务端入口（含 SearchAction JSON-LD）。 / Search page server entry (with SearchAction JSON-LD).
 import { Metadata } from "next";
 import { Suspense } from "react";
 import { getSiteUrl } from "@/lib/seo";
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
   },
   robots: {
     // 搜索结果页通常不希望被索引，避免重复/低质内容
+    // Search result pages usually shouldn't be indexed, to avoid duplicate/low-quality content.
     index: false,
     follow: true,
   },
@@ -26,6 +28,7 @@ export const metadata: Metadata = {
 };
 
 // WebSite + SearchAction JSON-LD（Google 站内搜索框富媒体结果）
+// WebSite + SearchAction JSON-LD (enables Google's sitelinks search box rich result).
 function SearchJsonLd() {
   const jsonLd = {
     "@context": "https://schema.org",

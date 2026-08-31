@@ -1,15 +1,18 @@
 "use client";
 
+// app/detail/[id]/DetailContent.tsx — 详情页客户端交互内容（元数据展示 + 评分 + 外链）。 / Detail client content (metadata display + rating + external links).
 import Link from "next/link";
 import { useId, useMemo, useState } from "react";
 import Image from "next/image";
 import { posterUrl, backdropUrl } from "@/lib/poster";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { COUNTRY_OPTIONS, LANGUAGE_OPTIONS } from "@/lib/config";
+import { splitMultiValue } from "@/lib/split";
 import type { Item, RecordRow, Status } from "@/lib/types";
 
 // 制片国家/地区标签：库里以 2 位国家代码（COUNTRY_OPTIONS.value）存储，
 // 显示时按当前语言映射到 zh/en 名称；未收录则原样显示代码。
+// Country label: stored as a 2-letter code (COUNTRY_OPTIONS.value); mapped to zh/en for display, raw code otherwise.
 function countryDisplay(value: string, lang: "zh" | "en"): string {
   const opt = COUNTRY_OPTIONS.find((c) => c.value === value);
   if (opt) return lang === "en" ? opt.en : opt.zh;
@@ -18,6 +21,7 @@ function countryDisplay(value: string, lang: "zh" | "en"): string {
 
 // 语言标签：库里以 ISO 639-1 两位小写代码（LANGUAGE_OPTIONS.value）存储，
 // 显示时按当前语言映射到 zh/en 名称；未收录则原样显示代码。
+// Language label: stored as an ISO 639-1 two-letter code (LANGUAGE_OPTIONS.value); mapped to zh/en, raw code otherwise.
 function languageDisplay(value: string, lang: "zh" | "en"): string {
   const opt = LANGUAGE_OPTIONS.find((l) => l.value === value);
   if (opt) return lang === "en" ? opt.en : opt.zh;
@@ -25,6 +29,7 @@ function languageDisplay(value: string, lang: "zh" | "en"): string {
 }
 
 // 详情页元数据里需要「拆分成多项并各自链接到搜索页」的字段（导演/编剧/主演/类型/制片国家地区）。
+// Metadata fields that should be split into multiple links to the search page (director/writer/cast/genre/country).
 const LINK_FIELDS = new Set([
   "detail.director",
   "detail.writer",
@@ -33,15 +38,9 @@ const LINK_FIELDS = new Set([
   "detail.country",
 ]);
 
-// 按常见分隔符拆分元数据（支持「 / 」「,」「，」「/」「、」）。
-function splitMeta(value: string): string[] {
-  return value
-    .split(/\s*\/\s*|,|，|\/|、/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
 
 // 将 0–10 分映射为 5 颗星（每颗星 2 分），支持半星。
+// Map a 0–10 score to 5 stars (2 points each), supporting half stars.
 function StarRating({ score }: { score: number }) {
   const uid = useId();
   const stars = useMemo(() => {
@@ -83,6 +82,7 @@ function StarRating({ score }: { score: number }) {
 }
 
 // 详情页交互内容（Client Component）：接收服务端已取好的 RecordRow，保留状态/评分等交互。
+// Detail client content (Client Component): receives the server-fetched RecordRow and keeps status/rating interactions.
 export default function DetailContent({
   record,
 }: {
@@ -219,7 +219,7 @@ export default function DetailContent({
                             : m.labelKey === "detail.country"
                             ? "country"
                             : "q";
-                        return splitMeta(m.value).map((part, i) => (
+                        return splitMultiValue(m.value).map((part, i) => (
                           <span key={`${part}-${i}`}>
                             {i > 0 && <span className="text-line"> / </span>}
                             <Link

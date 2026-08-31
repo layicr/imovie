@@ -2,7 +2,7 @@
   "name": "imovie",
   "version": "1.0.0",
   "private": true,
-  "description": "个人观影记录管理网站 iMOVIE（Next.js 14 + Turso/libSQL + TMDb）",
+  "description": "个人观影记录管理网站 iMOVIE",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -14,21 +14,21 @@
   },
   "dependencies": {
     "@libsql/client": "^0.6.2",
-    "next": "14.2.33",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "next": "16.3.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "@types/node": "^20.14.0",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.39",
     "tailwindcss": "^3.4.6",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.11"
   }
 }

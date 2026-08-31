@@ -1,3 +1,4 @@
+// app/report/page.tsx — 年度报告页服务端入口。 / Annual report page server entry.
 import { Metadata } from "next";
 import { getDb } from "@/lib/db";
 import { getReport } from "@/lib/queries";
@@ -19,6 +20,7 @@ export const metadata: Metadata = {
 };
 
 // 报表页服务端入口：提前拉取总览与年份数据，首屏 SSR。
+// Report page server entry: prefetch the overview and per-year data for first-paint SSR.
 export default async function ReportPage() {
   const db = await getDb();
   const report = await getReport(db);

@@ -1,3 +1,7 @@
+// lib/i18n/errors.ts — API 错误码与多语言文案映射。 / API error keys and bilingual messages.
+// 错误文案按语种维护，键名（ErrorKey）即稳定契约，路由层据此返回对应翻译。
+// Messages are kept per language; the key (ErrorKey) is the stable contract the routes respond with.
+
 export const errorMessages = {
   zh: {
     invalid_year: "无效年份",
@@ -24,6 +28,10 @@ export const errorMessages = {
 export type ErrorKey = keyof typeof errorMessages.zh;
 export type Lang = "zh" | "en";
 
+/**
+ * 按语种翻译错误码；未提供语种时默认中文，未知 key 回退中文文案。
+ * Translate an ErrorKey into the given language (defaults to zh); unknown keys fall back to zh.
+ */
 export function translateError(key: ErrorKey, lang: Lang = "zh"): string {
   return errorMessages[lang][key] ?? errorMessages.zh[key];
 }

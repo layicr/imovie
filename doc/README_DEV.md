@@ -15,7 +15,7 @@ iMOVIE 是一个自托管的**只读**个人观影记录展示网站，让你以
 
 | 维度 | 选型 | 说明 |
 |------|------|------|
-| 框架 | Next.js 14（App Router） | 页面 + Route Handler 同仓，SSR/CSR 混合 |
+| 框架 | Next.js 16（App Router） | 页面 + Route Handler 同仓，SSR/CSR 混合 |
 | 语言 | TypeScript（strict） | 全量类型，前端组件与后端查询共享 `lib/types.ts` |
 | 数据库 | libSQL（`@libsql/client`） | 本地 `file:` 或 Turso 远程 `libsql://`，业务代码无感切换 |
 | 校验 | Zod | 所有外部输入先经 schema 校验再进 SQL |
@@ -30,7 +30,7 @@ iMOVIE 是一个自托管的**只读**个人观影记录展示网站，让你以
 浏览器 / 客户端
    │  HTTP（可选 Basic Auth）
    ▼
-middleware.ts       限流（固定窗口 + 近似 LRU 淘汰）+ HTTP Basic 认证 + 错误脱敏
+proxy.ts       限流（固定窗口 + 近似 LRU 淘汰）+ HTTP Basic 认证 + 错误脱敏
    │
    ▼
 app/               页面（Server Component 直查库）+ api/*（Route Handler）
@@ -149,8 +149,8 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 - **查询层**：`lib/queries.ts` 仅含 `SELECT` 函数（列表/筛选/搜索、侧栏维度、详情、年报总览、年报分组），全部使用参数化占位符，动态排序走白名单枚举，**零 SQL 注入**。
 - **维度缓存**：`listFacets` 有模块级 5 分钟 TTL 缓存（`facetsCache`），避免每次列表请求重复扫描；写入后调用 `invalidateFacets()` 可立即刷新。
 - **写库隔离**：写入逻辑 `ensureItem` / `upsertRecord` 仅定义在 `scripts/seed.ts` 内，不导入到应用层，保证线上运行态不可写。
-- **站点保护**：可选 Basic Auth（`middleware.ts`）+ 生产 CSP / 安全响应头（`next.config.mjs`）：`X-Content-Type-Options` / `X-Frame-Options: DENY` / `Referrer-Policy` / `Permissions-Policy` / `Content-Security-Policy`（已含 `img-src` 白名单与 `script-src` 内联，dev 需 `'unsafe-eval'`）。
-- **限流中间件**（`middleware.ts`）：Edge Runtime 下用模块级 `Map` 做固定窗口计数，并已加容量防护：
+- **站点保护**：可选 Basic Auth（`proxy.ts`）+ 生产 CSP / 安全响应头（`next.config.mjs`）：`X-Content-Type-Options` / `X-Frame-Options: DENY` / `Referrer-Policy` / `Permissions-Policy` / `Content-Security-Policy`（已含 `img-src` 白名单与 `script-src` 内联，dev 需 `'unsafe-eval'`）。
+- **限流中间件**（`proxy.ts`）：Edge Runtime 下用模块级 `Map` 做固定窗口计数，并已加容量防护：
   - 全局：`RATE_LIMIT` 次 / IP / 60s，超出 `429`（带 `Retry-After`）。
   - 认证防爆破：`AUTH_FAIL_LIMIT` 次 / IP / 60s，超出 `429`；认证成功清空该 IP 失败计数。
   - 每次请求顺带执行 `sweep()`：清理过期桶，并在桶数超过 `MAX_BUCKETS=2000` 时按最早到期（`resetAt`）近似 LRU 淘汰，防止异常 IP 风暴撑爆内存。
@@ -188,7 +188,7 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 
 ### 设计要点
 1. **不连真实库**：功能测试基于 `:memory:` fixture（`test/fixtures/db.ts` 读 `data/schema.sql` 建表 + 造数据），断言精确、确定、隔离。
-2. **直接调用 Handler**：API 路由用 `new NextRequest(url)` 直接 `await GET(req)`；中间件用 `await middleware(req)`，均无需启动 server。
+2. **直接调用 Handler**：API 路由用 `new NextRequest(url)` 直接 `await GET(req)`；中间件（Proxy）用 `await proxy(req)`，均无需启动 server。
 3. **状态隔离**：`listFacets` 缓存用 `invalidateFacets()` 重置；中间件模块用 `vi.resetModules()` 重载，清空计数 Map。
 4. **双模式错误校验**：`lib/api-error.ts` 在 `NODE_ENV=production` 下对 5xx 统一脱敏为 `internal_error`，测试同时验证开发/生产两种模式下的文案行为。
 5. **离线 + 快速**：Vitest 无 IO 依赖，`npm test` 秒级完成；Playwright 拉起 `next dev`，不依赖外链图加载断言（导航用 `domcontentloaded`，移动端 describe 块用 `beforeEach` 强制 390×844 视口确保响应式类生效）。
@@ -210,7 +210,7 @@ NEXT_PUBLIC_SITE_URL=https://imovie.lyc.la
 
 该变量用于 `metadataBase`、`canonical`、`sitemap`、`robots` 与 JSON-LD。本地开发未设置时自动回退到 `http://localhost:3000`，生产未设置将打印警告。
 
-> 详见 [test/README.md](./../test/README.md) 与测试报告 [REPORT-2026-08-27.md](./../test/REPORT-2026-08-27.md)（含 [REPORT-2026-08-26.md](./../test/REPORT-2026-08-26.md) 存档）。
+> 详见 [test/README.md](./../test/README.md)。
 
 ---
 
@@ -245,5 +245,5 @@ lib/           db / queries（纯只读）/ config / poster / types / validate /
 data/          schema.sql（建表 DDL）+ local.db（运行时实际数据库，不入库）
 scripts/       seed.ts（一次性灌库脚本，内含写库函数，不污染应用层）
 test/          unit / functional / e2e / fixtures（自动化测试，见第八节）
-middleware.ts  限流 + HTTP Basic Auth + 错误脱敏
+proxy.ts  限流 + HTTP Basic Auth + 错误脱敏
 ```

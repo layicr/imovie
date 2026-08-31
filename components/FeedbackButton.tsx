@@ -1,9 +1,11 @@
 "use client";
 
+// components/FeedbackButton.tsx — 右下角「反馈问题」浮动按钮（外链 GitHub Issues）。 / Bottom-right "feedback" floating button (links to GitHub Issues).
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { FEEDBACK_GITHUB_URL } from "@/lib/config";
 
 // 右下角「反馈问题」按钮：点击在新标签页打开 GitHub 反馈链接（Issues 页）。
+// Bottom-right feedback button: opens the GitHub feedback link (Issues) in a new tab.
 export default function FeedbackButton() {
   const { t } = useLanguage();
 

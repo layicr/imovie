@@ -1,9 +1,11 @@
 "use client";
 
+// components/BackToTop.tsx — 右下角「返回顶部」浮动按钮（滚动后出现）。 / Bottom-right "back to top" floating button (appears after scrolling).
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 
 // 右下角「返回顶部」按钮：滚动超过一定距离后出现，点击平滑回到页面顶部。
+// Back-to-top button: appears after scrolling past a threshold; click smoothly scrolls to the top.
 export default function BackToTop() {
   const { t } = useLanguage();
   const [show, setShow] = useState(false);

@@ -1,5 +1,6 @@
 "use client";
 
+// app/search/SearchContent.tsx — 搜索页客户端内容（筛选 + 分页 + URL 同步）。 / Search client content (filters + pagination + URL sync).
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import PosterCard from "@/components/PosterCard";
@@ -8,6 +9,7 @@ import { COUNTRY_OPTIONS, GENRE_OPTIONS, PAGE_SIZE_OPTIONS, PAGE_SIZE_DEFAULT } 
 import type { MediaType, RecordRow, Status } from "@/lib/types";
 
 // 动态类型标签：库里以中文存储，优先用 GENRE_OPTIONS 映射，未收录则原样显示。
+// Genre label: stored in Chinese in the DB; prefer the GENRE_OPTIONS map, otherwise show the raw value.
 function genreDisplay(value: string, lang: "zh" | "en"): string {
   const opt = GENRE_OPTIONS.find((g) => g.value === value);
   if (opt) return lang === "en" ? opt.en : opt.zh;
@@ -15,6 +17,7 @@ function genreDisplay(value: string, lang: "zh" | "en"): string {
 }
 
 // 制片国家/地区标签：库里以中文存储，优先用 COUNTRY_OPTIONS 映射，未收录则原样显示。
+// Country label: stored in Chinese in the DB; prefer the COUNTRY_OPTIONS map, otherwise show the raw value.
 function countryDisplay(value: string, lang: "zh" | "en"): string {
   const opt = COUNTRY_OPTIONS.find((c) => c.value === value);
   if (opt) return lang === "en" ? opt.en : opt.zh;
@@ -22,6 +25,7 @@ function countryDisplay(value: string, lang: "zh" | "en"): string {
 }
 
 // 搜索页内容（Client Component）：useSearchParams 需在 Suspense 边界内使用。
+// Search page content (Client Component): useSearchParams must sit inside a Suspense boundary.
 export default function SearchContent() {
   const { t, lang } = useLanguage();
   const sp = useSearchParams();
@@ -114,6 +118,7 @@ export default function SearchContent() {
     params.set("limit", String(n));
 
     // 同步筛选条件到 URL（不重载页面），使 ?q= 等参数可被分享/刷新保留
+  // Sync filters into the URL without reloading, so ?q= etc. can be shared and survive refresh.
     const qs = params.toString();
     const nextUrl = qs ? `${pathname}?${qs}` : pathname;
     if (typeof window !== "undefined" && window.location.href !== nextUrl) {
@@ -311,6 +316,8 @@ export default function SearchContent() {
   );
 }
 
+// 筛选用的小圆角按钮（chip），高亮表示当前选中。
+// A small rounded filter chip; highlighted when active.
 function Chip({
   active,
   onClick,

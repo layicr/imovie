@@ -1,6 +1,8 @@
-// 英文文案字典（参数抽出来集中管理）。
+// lib/i18n/en.ts — 英文文案字典（参数抽出来集中管理）。 / English copy dictionary (parameters centralized).
 // 所有 UI 文案统一从此处取，组件通过 t(key[, vars]) 渲染，支持 {0}{1} 占位插值。
+// All UI copy is sourced here; components render via t(key[, vars]) with {0}{1} placeholder interpolation.
 // 影片元数据（片名/简介等）来自数据库，不在此翻译。
+// Movie metadata (title/overview…) comes from the database and is not translated here.
 
 export const en: Record<string, string> = {
   "nav.home": "Home",
@@ -20,7 +22,6 @@ export const en: Record<string, string> = {
   "footer.iblog": "iblog",
   "footer.github": "github",
 
-  "home.loading": "Loading…",
   "home.recentWatched": "Recently Watched",
   "home.wishlist": "Watchlist",
   "home.viewDetail": "View Details",
@@ -66,9 +67,6 @@ export const en: Record<string, string> = {
   "report.monthCount": "{0}",
   "report.month": "{1}, {0}",
 
-  "detail.loading": "Loading…",
-  "detail.notFound": "Movie not found (may not be added yet).",
-  "detail.notFoundGeneric": "Not Found",
   "detail.originalTitle": "Original Title",
   "detail.tmdb": "TMDb",
   "detail.tmdbId": "TMDb",

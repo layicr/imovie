@@ -1,10 +1,12 @@
 "use client";
 
+// components/Footer.tsx — 站点页脚（标语 + 友情链接）。 / Site footer (tagline + friend links).
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { FOOTER_LINKS, SITE_NAME } from "@/lib/config";
 
 // 友情链接：站点底部展示，外链统一新开页并加安全属性；文案随语言切换。
+// Footer links: shown at the bottom; external links open in a new tab with safe rel; copy is localized.
 export default function Footer() {
   const { t } = useLanguage();
   return (

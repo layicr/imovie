@@ -6,6 +6,9 @@ import {
   COUNTRY_OPTIONS,
   GENRE_OPTIONS,
   LANGUAGE_OPTIONS,
+  SITE_NAME,
+  NAV_LINKS,
+  FOOTER_LINKS,
 } from "@/lib/config";
 
 describe("config 常量", () => {
@@ -54,6 +57,34 @@ describe("config 常量", () => {
       expect(l.value).toBeTruthy();
       expect(l.zh).toBeTruthy();
       expect(l.en).toBeTruthy();
+    }
+  });
+});
+
+describe("站点元信息与导航", () => {
+  it("SITE_NAME 为 iMOVIE", () => {
+    expect(SITE_NAME).toBe("iMOVIE");
+  });
+
+  it("NAV_LINKS 含 home/search/report 三项，且 href/key 唯一非空", () => {
+    expect(NAV_LINKS.map((l) => l.key).sort()).toEqual([
+      "nav.home",
+      "nav.report",
+      "nav.search",
+    ]);
+    const hrefs = new Set(NAV_LINKS.map((l) => l.href));
+    expect(hrefs.size).toBe(NAV_LINKS.length);
+    for (const l of NAV_LINKS) {
+      expect(l.href).toBeTruthy();
+      expect(l.key).toBeTruthy();
+    }
+  });
+
+  it("FOOTER_LINKS 非空且每项具备 href/key", () => {
+    expect(FOOTER_LINKS.length).toBeGreaterThan(0);
+    for (const l of FOOTER_LINKS) {
+      expect(l.href).toBeTruthy();
+      expect(l.key).toBeTruthy();
     }
   });
 });

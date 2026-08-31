@@ -1,5 +1,6 @@
 "use client";
 
+// app/HomeContent.tsx — 首页客户端内容组件。 / Home client content component.
 import Image from "next/image";
 import MovieRow from "@/components/MovieRow";
 import { posterUrl, backdropUrl } from "@/lib/poster";
@@ -7,6 +8,7 @@ import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import type { RecordRow } from "@/lib/types";
 
 // 看板首页内容（Client Component）：服务端已取好初始数据，直接渲染 Hero + 两行海报墙。
+// Home dashboard content (Client Component): the server already fetched the initial data; we render the Hero + two poster rows.
 export default function HomeContent({
   plan,
   watched,
@@ -19,7 +21,7 @@ export default function HomeContent({
 
   return (
     <div>
-      {/* Hero 大图 */}
+      {/* Hero 大图 / Hero backdrop */}
       {featured ? (
         <section
           className="relative mb-8 flex min-h-[320px] items-end overflow-hidden rounded-lg p-6 sm:min-h-[420px] sm:p-10"

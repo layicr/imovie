@@ -1,5 +1,6 @@
 "use client";
 
+// components/Nav.tsx — 顶部导航栏（logo + 导航 + 搜索 + 语言切换，移动端可折叠）。 / Top navigation bar (logo + nav + search + language switch, collapsible on mobile).
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -8,6 +9,7 @@ import { NAV_LINKS, SITE_NAME } from "@/lib/config";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 // 顶部导航：红色 logo + 导航 + 搜索框 + 语言切换；移动端可折叠。
+// Top nav: red logo + nav links + search box + language switch; collapses on mobile.
 export default function Nav() {
   const { t } = useLanguage();
   const pathname = usePathname();

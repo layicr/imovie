@@ -1,17 +1,23 @@
-// 站点结构性参数统一抽取到此（导航、友情链接、类型筛选项等），
+// lib/config.ts — 站点结构性参数统一配置。 / Site structural config (centralized).
 // 文案本身走 translations.ts，这里只放「结构 + key 映射」，便于一处维护。
+// Copy lives in translations.ts; here we keep only structure + key mapping for one-place maintenance.
 
 export const SITE_NAME = "iMOVIE";
 
 // 右下角「反馈问题」按钮跳转的 GitHub 链接（默认指向 Issues 页，按需改成你的实际仓库地址）。
+// GitHub link for the bottom-right "feedback" button (points to Issues by default; change to your repo).
 export const FEEDBACK_GITHUB_URL = "https://github.com/layicr/imovie/issues";
 
+// 顶部导航链接：href 为路由，key 对应 translations 中的文案键。
+// Top nav links: href is the route, key maps to a translation entry.
 export const NAV_LINKS: { href: string; key: string }[] = [
   { href: "/", key: "nav.home" },
   { href: "/search", key: "nav.search" },
   { href: "/report", key: "nav.report" },
 ];
 
+// 页脚友情链接：href 为外链，key 对应 translations 中的文案键。
+// Footer friend links: href is external, key maps to a translation entry.
 export const FOOTER_LINKS: { href: string; key: string }[] = [
   { href: "https://github.com/layicr/imovie", key: "footer.github" },
   { href: "https://www.douban.com/people/48161908", key: "footer.douban" },
@@ -20,12 +26,14 @@ export const FOOTER_LINKS: { href: string; key: string }[] = [
 
 export interface GenreOption {
   // value：后端按此值做 genres LIKE 匹配（库里存的是中文/原值，故中文为规范值）
+  // value: the value used for a genres LIKE match on the backend (DB stores Chinese/original, so Chinese is canonical).
   value: string;
   zh: string;
   en: string;
 }
 
 // 类型筛选 chips：显示随语言切换，但筛选值保持与数据库一致（中文/原值）。
+// Genre filter chips: labels switch by language, but filter values stay aligned with the DB (Chinese/original).
 export const GENRE_OPTIONS: GenreOption[] = [
   // 剧情 / 情感
   { value: "剧情", zh: "剧情", en: "Drama" },
@@ -68,12 +76,14 @@ export const GENRE_OPTIONS: GenreOption[] = [
 
 export interface CountryOption {
   // value：后端按此值做 country LIKE 匹配（库里存的是 2 位 ISO 3166-1 alpha-2 代码，如 CN/US，故代码为规范值）
+  // value: the value used for a country LIKE match (DB stores 2-letter ISO 3166-1 alpha-2, e.g. CN/US, so the code is canonical).
   value: string;
   zh: string;
   en: string;
 }
 
 // 制片国家/地区筛选 chips：显示随语言切换，但筛选值保持与数据库一致（中文/原值）。
+// Country/region filter chips: labels switch by language, but filter values stay aligned with the DB (Chinese/original).
 export const COUNTRY_OPTIONS: CountryOption[] = [
   // 亚洲
   { value: "CN", zh: "中国大陆", en: "China" },
@@ -145,12 +155,14 @@ export const COUNTRY_OPTIONS: CountryOption[] = [
 
 export interface LanguageOption {
   // value：后端按此值做 language LIKE 匹配（库里存 ISO 639-1 两位小写代码，如 zh/en/ja）。
+  // value: the value used for a language LIKE match (DB stores ISO 639-1 two-letter lowercase, e.g. zh/en/ja).
   value: string;
   zh: string;
   en: string;
 }
 
 // 语言筛选 chips：库里以 ISO 639-1 两位小写代码存储，显示随语言切换。
+// Language filter chips: DB stores ISO 639-1 two-letter lowercase; labels switch by language.
 export const LANGUAGE_OPTIONS: LanguageOption[] = [
   { value: "zh", zh: "汉语", en: "Chinese" },
   { value: "en", zh: "英语", en: "English" },
@@ -185,11 +197,14 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
 ];
 
 // 分页：每页条数可选项（集中在 config 维护，前后端共用同一上限）。
+// Pagination: per-page options (centralized; frontend and backend share the same cap).
 // PAGE_SIZE_DEFAULT 为默认每页条数；数组最后一个值即允许的最大条数。
-export const PAGE_SIZE_OPTIONS: number[] = [ 30, 60, 90, 120];
+// PAGE_SIZE_DEFAULT is the default per-page size; the last array item is the allowed maximum.
+export const PAGE_SIZE_OPTIONS: number[] = [30, 60, 90, 120];
 export const PAGE_SIZE_DEFAULT = 60;
 export const PAGE_SIZE_MAX = PAGE_SIZE_OPTIONS[PAGE_SIZE_OPTIONS.length - 1];
 
 // 首页看板两行板块的展示数量（想看 / 已看），集中配置便于调整。
+// Home dashboard row sizes (plan / watched), centralized for easy tuning.
 export const HOME_PLAN_LIMIT = 10;
 export const HOME_WATCHED_LIMIT = 30;

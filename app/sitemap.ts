@@ -1,14 +1,15 @@
+// app/sitemap.ts — 站点 sitemap.xml 生成（SEO）。 / Site sitemap.xml generation (SEO).
 import { MetadataRoute } from "next";
 import { getDb } from "@/lib/db";
 import { getSiteUrl } from "@/lib/seo";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // 依赖数据库中的影片列表（实时读取 item_id），禁止静态预渲染 / Depends on the live DB item list; disable static prerender.
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
   const db = await getDb();
 
-  // 静态路由
+  // 静态路由 / Static routes.
   const routes: MetadataRoute.Sitemap = [
     {
       url: `${siteUrl}/`,
@@ -30,7 +31,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  // 所有影片详情页
+  // 所有影片详情页 / Every movie detail page.
   const { rows } = await db.execute("SELECT item_id, updated_at FROM imovie_items ORDER BY item_id");
   const typedRows = rows as unknown as { item_id: string; updated_at: string | null }[];
   const detailUrls = typedRows.map((row) => ({

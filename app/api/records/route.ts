@@ -1,14 +1,15 @@
+// app/api/records/route.ts — 列表/筛选/搜索 API 入口。 / List/filter/search API entry.
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { listFacets, listRecords } from "@/lib/queries";
 import { listQuerySchema } from "@/lib/validate";
 import { PAGE_SIZE_DEFAULT } from "@/lib/config";
-import { apiError, apiErrorFromUnknown } from "@/lib/api-error";
+import { handleRouteError } from "@/lib/api-error";
 
-export const dynamic = "force-dynamic"; // 依赖查询参数，禁止静态预渲染
+export const dynamic = "force-dynamic"; // 依赖查询参数，禁止静态预渲染 / Depends on query params; disable static prerender.
 
 // GET /api/records?status=&media_type=&year=&genre=&country=&q=&sort=&order=&page=&limit=
-// 看板列表 / 多维筛选 / 全局搜索统一入口（参数化查询，防注入）。
+// 看板列表 / 多维筛选 / 全局搜索统一入口（参数化查询，防注入）。 / Unified list/filter/search entry (parameterized, injection-safe).
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
@@ -39,10 +40,7 @@ export async function GET(req: NextRequest) {
       years,
       countries,
     });
-  } catch (e: any) {
-    if (e?.name === "ZodError") {
-      return apiError("validation_failed", 422, undefined, req);
-    }
-    return apiErrorFromUnknown(e, "query_failed", req);
+  } catch (e: unknown) {
+    return handleRouteError(e, { fallbackKey: "query_failed", req });
   }
 }

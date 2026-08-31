@@ -1,10 +1,13 @@
 "use client";
 
+// components/Analytics.tsx — 第三方统计脚本注入（百度/51.la/GA，按配置开关）。 / Third-party analytics scripts (Baidu/51.la/GA, toggled by config).
 import Script from "next/script";
 import { BAIDU_TONGJI_ID, LA_51_ID, LA_51_CK, GA_MEASUREMENT_ID } from "@/lib/analytics";
 
 // 第三方统计脚本（图标不可见）：仅在配置了对应 ID 时注入到页面底部。
 // 用 next/script 的 afterInteractive 策略，等页面交互就绪后再加载，不影响首屏。
+// Invisible tracking scripts injected at the page bottom only when the matching ID is configured.
+// next/script's afterInteractive strategy loads them after interaction, so they don't block first paint.
 export default function Analytics() {
   return (
     <>

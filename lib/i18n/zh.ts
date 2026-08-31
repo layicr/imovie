@@ -1,6 +1,8 @@
-// 中文文案字典（参数抽出来集中管理）。
+// lib/i18n/zh.ts — 中文文案字典（参数抽出来集中管理）。 / Chinese copy dictionary (parameters centralized).
 // 所有 UI 文案统一从此处取，组件通过 t(key[, vars]) 渲染，支持 {0}{1} 占位插值。
+// All UI copy is sourced here; components render via t(key[, vars]) with {0}{1} placeholder interpolation.
 // 影片元数据（片名/简介等）来自数据库，不在此翻译。
+// Movie metadata (title/overview…) comes from the database and is not translated here.
 
 export const zh: Record<string, string> = {
   "nav.home": "首页",
@@ -19,7 +21,6 @@ export const zh: Record<string, string> = {
   "footer.iblog": "iblog",
   "footer.github": "github",
 
-  "home.loading": "加载中…",
   "home.recentWatched": "最近看过",
   "home.wishlist": "想看清单",
   "home.viewDetail": "查看详情",
@@ -65,9 +66,6 @@ export const zh: Record<string, string> = {
   "report.monthCount": "{0} 部",
   "report.month": "{0}年{1}月",
 
-  "detail.loading": "加载中…",
-  "detail.notFound": "未找到该影片（可能尚未添加）。",
-  "detail.notFoundGeneric": "未找到",
   "detail.originalTitle": "原名",
   "detail.tmdb": "TMDb",
   "detail.tmdbId": "TMDb",

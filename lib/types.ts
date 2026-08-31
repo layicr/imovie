@@ -1,11 +1,11 @@
-// 全局共享类型定义，保证前端组件与后端查询字段一致。
+// lib/types.ts — 全局共享类型定义，保证前端组件与后端查询字段一致。 / Shared types so frontend components and backend queries agree on fields.
 
 export type MediaType = "movie" | "tv";
 export type Status = "plan" | "watched";
 
-// 影片元数据（对应 imovie_items 表）
+// 影片元数据（对应 imovie_items 表） / Movie metadata (maps to the imovie_items table).
 export interface Item {
-  item_id?: string | null;               // 主键（schema 为 TEXT PRIMARY KEY，实际必填不可为空；TMDb 独占条目也在 seed 中保证了值）
+  item_id: string;                        // 主键（schema 为 TEXT PRIMARY KEY，必填不可为空） / Primary key (TEXT PRIMARY KEY, required).
   media_type: MediaType;
   title: string;
   original_title?: string | null;
@@ -28,24 +28,22 @@ export interface Item {
   tmdb_rating?: number | null;
 }
 
-// 一条观影记录 + 关联的影片元数据（看板/详情/搜索的通用返回结构）
+// 一条观影记录 + 关联的影片元数据（看板/详情/搜索的通用返回结构） / One watch record plus its movie metadata (shared by dashboard/detail/search).
 export interface RecordRow {
   rec_id: number;
   status: Status;
   rating?: number | null;
   tags?: string | null;
   watched_at?: string | null;
-  created_at?: string | null; // 记录创建（添加）时间，用于「想看」场景展示添加日期
+  created_at?: string | null; // 记录创建（添加）时间，用于「想看」场景展示添加日期 / Record creation time; shown as the "added" date in the plan-to-watch view.
   item: Item;
 }
 
-// 报表按年分组结构
-// items 仅供未来年份下钻使用，报表页当前仅消费 count/avg，故设为可选。
+// 报表按年分组结构 / Report grouped by year.
 export interface YearGroup {
   year: number;
   count: number;
   avg: number | null;
-  items?: RecordRow[];
 }
 
 export interface ReportData {
@@ -57,10 +55,9 @@ export interface ReportData {
   years: YearGroup[];
 }
 
-// 年份下钻：按月（YYYY-MM）分组观影记录
+// 年份下钻：按月（YYYY-MM）分组观影记录 / Year drill-down: records grouped by month (YYYY-MM).
 export interface MonthBucket {
-  monthKey: string; // 中性标识，例如 "2026-01"（展示文案由前端按语言格式化）
-  monthLabel: string; // 同 monthKey 占位（实际展示用 formatMonth 生成）
+  monthKey: string; // 中性标识，例如 "2026-01"（展示文案由前端按语言格式化） / Neutral key, e.g. "2026-01" (display text is localized on the frontend).
   count: number;
   items: RecordRow[];
 }

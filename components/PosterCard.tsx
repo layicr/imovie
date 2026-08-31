@@ -1,13 +1,14 @@
 "use client";
 
+// components/PosterCard.tsx — 单个海报卡片（hover 放大 + 评分/想看角标）。 / Single poster card (hover zoom + rating/plan badge).
 import Image from "next/image";
 import Link from "next/link";
 import { posterUrl } from "@/lib/poster";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import type { RecordRow } from "@/lib/types";
 
-// 海报卡片：hover 放大 1.3 倍、压制相邻卡片、浮出操作提示（Netflix 手感）。
-// 已看卡片带红色评分角标，想看带红色「想看」徽章。
+// 海报卡片：hover 放大 1.1 倍并自身浮起（z-10）；底部操作提示悬停淡入；已看带品牌色评分角标，想看带品牌色「想看」徽章，豆瓣评分为琥珀色。
+// Poster card: on hover it scales to 1.1× and lifts itself (z-10); the bottom action hint fades in; watched shows a brand-color rating badge, plan-to-watch a brand-color "plan" badge, and Douban rating an amber badge.
 export default function PosterCard({ rec }: { rec: RecordRow }) {
   const { item, status, rating } = rec;
   const { t } = useLanguage();

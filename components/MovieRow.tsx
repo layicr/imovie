@@ -1,11 +1,14 @@
 "use client";
 
+// components/MovieRow.tsx — 横向/换行海报墙（带标题的一行影片）。 / Horizontal/wrapping poster row (a titled strip of movies).
 import PosterCard from "./PosterCard";
 import type { RecordRow } from "@/lib/types";
 
 // 横向内容行：标题 + 海报墙。
 // 移动端：横向滑动（snap + 隐藏滚动条），还原 Netflix 横向手感；
 // 桌面端（md+）：自动换行铺满，避免大屏留白浪费。
+// A titled row of posters. Mobile scrolls horizontally (snap + hidden scrollbar) for the Netflix feel;
+// desktop (md+) wraps to fill the width and avoid wasted whitespace.
 export default function MovieRow({
   title,
   records,

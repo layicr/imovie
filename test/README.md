@@ -1,6 +1,6 @@
 # iMOVIE 测试说明（test/）
 
-本目录为 iMOVIE 项目（Next.js 14 + libSQL + TMDb）的自动化测试套件，分两层：
+本目录为 iMOVIE 项目（Next.js 16 + libSQL + TMDb）的自动化测试套件，分两层：
 
 - **Vitest**（单元 + 功能测试）：完全离线、确定性、秒级，覆盖纯函数、数据库查询逻辑、API 路由与中间件安全。
 - **Playwright**（UI 端到端测试）：拉起 `next dev`，验证 Web 桌面端 / 移动端的真实界面行为与响应式。
@@ -26,7 +26,7 @@ Playwright 配置见根目录 `playwright.config.ts`（自动拉起 `next dev`�
 ## 设计原则
 
 1. **不连真实库**：功能测试基于 `:memory:` 内存库插入已知造数据，断言精确、确定、隔离，不依赖 `local.db`（2293 条且状态会变）。
-2. **直接调用 Route Handler / Middleware**：API 路由用 `new NextRequest(url)` 直接 `await GET(req)`；中间件安全测试用 `await middleware(req)` 直接调用，均无需启动完整 server，轻量稳定。
+2. **直接调用 Route Handler / Proxy**：API 路由用 `new NextRequest(url)` 直接 `await GET(req)`；中间件（Proxy）安全测试用 `await proxy(req)` 直接调用，均无需启动完整 server，轻量稳定。
 3. **缓存隔离**：`lib/queries.ts` 的 `listFacets` 有模块级 5 分钟 TTL 缓存，每个用例前调用 `invalidateFacets()` 重置；中间件模块顶部读取 `process.env` 且计数 Map 跨用例共享，故安全测试用 `vi.resetModules()` 重新加载模块，确保干净状态。
 4. **Schema 复用**：fixture 读取 `data/schema.sql` 按 `;` 拆分执行建表，与 `lib/db.ts` 的 `applySchema` 保持一致，不重复维护 DDL。
 5. **UI 测试不依赖外链图加载**：导航用 `waitUntil:"domcontentloaded"`，海报断言用整页首个 `<img>`（`next/image` 对视口外 lazy 图延迟挂载）。
@@ -67,7 +67,7 @@ test/
 ## 测试用例清单
 
 > 合计 **199 例**：单元 66 + 功能 75（含安全 21）+ UI e2e 58（web 29 + mobile 29）。
-> 最近一次全量运行（2026-08-27，实测）：`Vitest 9 files / 141 passed`（2.03s，零失败）；`Playwright 57 passed + 1 flaky`（共 58 例，3.2m，1 例 flaky 为移动端导航跳转断言时机问题，重跑即通过）。详见 [REPORT-2026-08-27.md](./REPORT-2026-08-27.md)。
+> 最近一次全量运行（2026-08-27，实测）：`Vitest 9 files / 141 passed`（2.03s，零失败）；`Playwright 57 passed + 1 flaky`（共 58 例，3.2m，1 例 flaky 为移动端导航跳转断言时机问题，重跑即通过）。
 
 ### 单元测试（66 例）
 
@@ -78,7 +78,7 @@ test/
 | `unit/config.test.ts` (5) | `PAGE_SIZE_DEFAULT=60` 且包含在 `PAGE_SIZE_OPTIONS`、`PAGE_SIZE_MAX` 为末项且 ≥ 默认、`COUNTRY_OPTIONS` 含新增 `LB`(黎巴嫩)/`MT`(马耳他) 及 `zh/en` 文案、每项 `value`/`zh`/`en` 唯一、`GENRE_OPTIONS`/`LANGUAGE_OPTIONS` 非空且三字段齐全 |
 | `unit/db.test.ts` (3) | `getDb`：同一进程内返回同一连接（单例，仅 connect 一次）、首次连接失败后可重试（`ready` 重置，下次重新 connect）、错误信息对连接 URL 脱敏（不泄露 token / 绝对路径） |
 | `unit/analytics.test.ts` (3) | 统计配置：GA 衡量 ID 形如 `G-XXXXXXXXXX`、百度统计 ID 非空且十六进制串、51.la 的 `id`/`ck` 非空且无空格 |
-| `unit/api-error.test.ts` (23) | `apiError`：开发/生产双模式文案、`NODE_ENV=production` 下 5xx 统一脱敏为 `internal_error`、4xx 仍回显错误 key 翻译、`isErrorKey` 判定、`translateError` 中/英回退、`resolveLang` 字符串/未定义/大小写归一化、`apiErrorFromUnknown` 未知错误走 fallback key、`extractKeyFromError` 幂等、`withError` 包装正常返回原值、安全头部 `X-Content-Type-Options: nosniff` + `Cache-Control: no-store` |
+| `unit/api-error.test.ts` (23) | `apiError`：开发/生产双模式文案、`NODE_ENV=production` 下 5xx 统一脱敏为 `internal_error`、4xx 回显错误 key 翻译、`extra` 字段合并、`isErrorKey` 判定、`translateError` 中/英/默认回退、`resolveLang` 字符串/未定义/accept-language 归一化、`apiErrorFromUnknown` 开发模式返回原始 message、生产模式 5xx 强制脱敏（fallbackKey 被屏蔽） |
 
 > 注：单元总用例数随断言细化略有浮动，运行 `npm test` 以控制台为准。
 
@@ -120,7 +120,7 @@ test/
 | 组合维度 | 认证成功后全局限流仍继续生效（限流与认证失败为独立计数） |
 | 路径放行 | 静态资源（`/_next/static`）、favicon、`robots.txt` 跳过认证 |
 
-> 每个用例用 `vi.resetModules()` 重载 middleware，确保从干净计数 Map 与正确 env 阈值开始；断言不依赖具体阈值数字，只验证「前若干次放行，之后持续 429」。
+> 每个用例用 `vi.resetModules()` 重载 proxy 模块，确保从干净计数 Map 与正确 env 阈值开始；断言不依赖具体阈值数字，只验证「前若干次放行，之后持续 429」。
 > 限流 Map 已加 `MAX_BUCKETS=2000` 上限与近似 LRU 淘汰，防止异常 IP 风暴撑爆内存。
 
 ### UI 端到端测试（58 例）

@@ -32,17 +32,15 @@ const nextConfig = {
   // 否则 Vercel 上读到的会是 connect() 时新建的空库（或找不到文件）→ 无数据。
   // 关键点：页面（Server Component：/、/detail/[id]、/search、/report）与
   // /api/** 都会查库，必须**同时**把这些入口都列入，否则只有 API 函数能拿到文件。
-  experimental: {
-    ...(useLocalDb && {
-      outputFileTracingIncludes: {
-        "/": dataTraceFiles,
-        "/detail/[id]": dataTraceFiles,
-        "/search": dataTraceFiles,
-        "/report": dataTraceFiles,
-        "/api/**/*": dataTraceFiles,
-      },
-    }),
-  },
+  ...(useLocalDb && {
+    outputFileTracingIncludes: {
+      "/": dataTraceFiles,
+      "/detail/[id]": dataTraceFiles,
+      "/search": dataTraceFiles,
+      "/report": dataTraceFiles,
+      "/api/**/*": dataTraceFiles,
+    },
+  }),
 
   // 全局安全响应头（公网部署加固）
   async headers() {

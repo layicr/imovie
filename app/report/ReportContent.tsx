@@ -1,5 +1,6 @@
 "use client";
 
+// app/report/ReportContent.tsx — 报表页客户端内容（总览三卡 + 年份下钻）。 / Report client content (overview cards + year drill-down).
 import { useEffect, useRef, useState } from "react";
 import PosterCard from "@/components/PosterCard";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
@@ -8,10 +9,12 @@ import type { ReportData, YearReportData } from "@/lib/types";
 const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // 报表页内容（Client Component）：总览三卡 + 按年份下钻。
+// Report content (Client Component): the three overview cards + year drill-down.
 export default function ReportContent({ initialReport }: { initialReport: ReportData }) {
   const { t, lang } = useLanguage();
 
   // 按当前语言将 YYYY-MM 格式化为展示文案（中文：2026年1月 / 英文：Jan, 2026）
+  // Format a YYYY-MM key into a localized label (zh: 2026年1月 / en: Jan, 2026).
   function formatMonth(monthKey: string): string {
     const [y, m] = monthKey.split("-");
     if (lang === "en") return t("report.month", [y, MONTHS_EN[Number(m) - 1]]);
@@ -20,6 +23,7 @@ export default function ReportContent({ initialReport }: { initialReport: Report
   const [report] = useState<ReportData>(initialReport);
 
   // 下钻状态：selectedYear 为当前展开的年份，yearData 为对应数据，yearLoading 表示下钻请求中
+  // Drill-down state: selectedYear is the expanded year, yearData its payload, yearLoading marks the in-flight request.
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [yearData, setYearData] = useState<YearReportData | null>(null);
   const [yearLoading, setYearLoading] = useState(false);
@@ -28,12 +32,13 @@ export default function ReportContent({ initialReport }: { initialReport: Report
 
   async function toggleYear(year: number) {
     if (selectedYear === year) {
-      // 再次点击收起
+      // 再次点击收起 / Click again to collapse.
       setSelectedYear(null);
       setYearData(null);
       return;
     }
     // 命中前端缓存，直接展开，避免重复请求
+    // Cache hit: expand immediately and skip the duplicate request.
     const cached = yearCache.current.get(year);
     if (cached) {
       setSelectedYear(year);
@@ -64,7 +69,7 @@ export default function ReportContent({ initialReport }: { initialReport: Report
     <div>
       <h1 className="mb-6 font-display text-3xl">{t("report.title")}</h1>
 
-      {/* 总览三卡 */}
+      {/* 总览三卡 / Overview three cards */}
       <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card label={t("report.totalWatched")} value={String(overview.totalWatched)} />
         <Card
@@ -74,7 +79,7 @@ export default function ReportContent({ initialReport }: { initialReport: Report
         <Card label={t("report.thisYear")} value={String(overview.thisYearWatched)} />
       </div>
 
-      {/* 按年小计卡片（可点击下钻） */}
+      {/* 按年小计卡片（可点击下钻） / Per-year summary cards (click to drill down) */}
       {years.length ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {years.map((y) => {
@@ -106,7 +111,7 @@ export default function ReportContent({ initialReport }: { initialReport: Report
         <div className="text-subtle">{t("report.noWatched")}</div>
       )}
 
-      {/* 年份下钻：按月分组的观影记录 */}
+      {/* 年份下钻：按月分组的观影记录 / Year drill-down: records grouped by month */}
       {selectedYear != null && (
         <div className="mt-8 border-t border-line pt-6">
           <div className="mb-4 flex items-center justify-between">

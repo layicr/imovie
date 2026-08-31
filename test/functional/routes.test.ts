@@ -189,3 +189,57 @@ describe("GET /api/stats/[year]", () => {
     expect(body.error).toBe("Invalid year");
   });
 });
+
+describe("GET /api/records - 参数透传与响应结构", () => {
+  it("排序参数透传：?sort=douban_rating&order=desc 返回降序", async () => {
+    const res = await recordsGET(
+      makeReq("http://localhost/api/records?sort=douban_rating&order=desc")
+    );
+    const body = await res.json();
+    const ratings = body.records.map(
+      (r: { item: { douban_rating: number } }) => r.item.douban_rating
+    );
+    expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
+  });
+
+  it("分页参数透传：?limit=1&page=2 返回第二页且不与第一页重复", async () => {
+    const p1 = await recordsGET(makeReq("http://localhost/api/records?limit=1&page=1"));
+    const p2 = await recordsGET(makeReq("http://localhost/api/records?limit=1&page=2"));
+    const b1 = await p1.json();
+    const b2 = await p2.json();
+    expect(b1.pageSize).toBe(1);
+    expect(b2.pageSize).toBe(1);
+    expect(b2.records).toHaveLength(1);
+    const id1 = b1.records[0].item.item_id;
+    const id2 = b2.records[0].item.item_id;
+    expect(id2).not.toBe(id1);
+  });
+
+  it("响应结构：每条记录含完整 item 字段，facets 维度含造数据值", async () => {
+    const res = await recordsGET(makeReq("http://localhost/api/records"));
+    const body = await res.json();
+    for (const rec of body.records) {
+      expect(rec.item).toBeDefined();
+      expect(typeof rec.item.title).toBe("string");
+      expect("poster_path" in rec.item).toBe(true);
+      expect("douban_rating" in rec.item).toBe(true);
+    }
+    // facets 维度按「/」拆分后的独立 token
+    expect(body.genres).toContain("科幻");
+    expect(body.countries).toContain("美国");
+  });
+});
+
+describe("GET /api/stats - 响应结构", () => {
+  it("overview 含 totalWatched 与 avgRating，years 元素含 year/count", async () => {
+    const res = await statsGET(makeReq("http://localhost/api/stats"));
+    const body = await res.json();
+    expect(body.overview).toHaveProperty("totalWatched");
+    expect(body.overview).toHaveProperty("avgRating");
+    expect(Array.isArray(body.years)).toBe(true);
+    if (body.years.length > 0) {
+      expect(body.years[0]).toHaveProperty("year");
+      expect(body.years[0]).toHaveProperty("count");
+    }
+  });
+});

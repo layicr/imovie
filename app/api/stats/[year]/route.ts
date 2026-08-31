@@ -1,17 +1,20 @@
+// app/api/stats/[year]/route.ts — 年份下钻 API。 / Year drill-down API.
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getYearReport } from "@/lib/queries";
-import { apiError, apiErrorFromUnknown } from "@/lib/api-error";
+import { apiError, handleRouteError } from "@/lib/api-error";
 import { yearParamSchema } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/stats/[year] —— 某一年份按月份分组的观影记录（年报下钻）。
+// GET /api/stats/[year] — a given year's records grouped by month (annual-report drill-down).
 export async function GET(
   req: NextRequest,
-  { params }: { params: { year: string } }
+  { params }: { params: Promise<{ year: string }> }
 ) {
-  const parsed = yearParamSchema.safeParse(params.year);
+  const { year: yearStr } = await params;
+  const parsed = yearParamSchema.safeParse(yearStr);
   if (!parsed.success) {
     return apiError("invalid_year", 400, undefined, req);
   }
@@ -22,7 +25,7 @@ export async function GET(
     return NextResponse.json(data, {
       headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
     });
-  } catch (e: any) {
-    return apiErrorFromUnknown(e, "stats_failed", req);
+  } catch (e: unknown) {
+    return handleRouteError(e, { fallbackKey: "stats_failed", req });
   }
 }

@@ -38,9 +38,8 @@ const rateBuckets = new Map<string, Bucket>();
 const authFailBuckets = new Map<string, Bucket>();
 
 function clientIp(req: NextRequest): string {
-  // req.ip 在部分托管平台可用；否则从 x-forwarded-for 取首个地址
+  // Next 16 的 NextRequest 已移除 `ip` 字段，统一从 x-forwarded-for 取首个地址
   const xff = req.headers.get("x-forwarded-for");
-  if (req.ip) return req.ip;
   if (xff) return xff.split(",")[0].trim();
   return "unknown";
 }
@@ -89,7 +88,7 @@ function tooMany(remaining: number, resetAt: number, limit: number): NextRespons
   });
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const now = Date.now();
   const ip = clientIp(req);
   sweep(rateBuckets, now);

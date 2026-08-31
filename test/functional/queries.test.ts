@@ -29,6 +29,8 @@ const ITEMS: SeedItem[] = [
     poster_path: "/p1.jpg",
     genres: "科幻/剧情",
     country: "美国",
+    director: "克里斯托弗·诺兰",
+    cast: "马修·麦康纳",
     release_date: "2024-11-08",
     douban_rating: 9.4,
     tmdb_rating: 8.6,
@@ -42,6 +44,7 @@ const ITEMS: SeedItem[] = [
     poster_path: "/p2.jpg",
     genres: "喜剧/动画",
     country: "日本",
+    writer: "樱桃子",
     release_date: "2023-01-15",
     douban_rating: 8.8,
     tmdb_rating: 7.9,
@@ -55,6 +58,8 @@ const ITEMS: SeedItem[] = [
     poster_path: "/p3.jpg",
     genres: "科幻/冒险",
     country: "中国大陆",
+    director: "郭帆",
+    cast: "吴京",
     release_date: "2023-08-30(中国大陆)",
     douban_rating: 8.3,
     tmdb_rating: 7.0,
@@ -415,5 +420,75 @@ describe("listRecords - 排序 NULLS LAST 二级键", () => {
     expect(dates).toEqual(sortedAsc);
     expect(records.slice(records.length - withoutDate.length).map((r) => r.rec_id))
       .toEqual(expect.arrayContaining(withoutDate.map((r) => r.rec_id)));
+  });
+});
+
+describe("listRecords - 多字段 q 搜索", () => {
+  it("q 命中导演（director 字段）", async () => {
+    const { records, total } = await listRecords(db, { q: "诺兰" });
+    expect(total).toBe(1);
+    expect(records[0].item.item_id).toBe("tt1");
+  });
+
+  it("q 命中主演（cast 字段）", async () => {
+    const { records, total } = await listRecords(db, { q: "吴京" });
+    expect(total).toBe(1);
+    expect(records[0].item.item_id).toBe("tt3");
+  });
+
+  it("q 命中编剧（writer 字段）", async () => {
+    const { records, total } = await listRecords(db, { q: "樱桃子" });
+    expect(total).toBe(1);
+    expect(records[0].item.item_id).toBe("tt2");
+  });
+
+  it("q 命中标签（tags 字段，含 plan 记录）", async () => {
+    // tt7 是 plan 状态，tags="重温"，q 搜索跨 status 匹配
+    const { records, total } = await listRecords(db, { q: "重温" });
+    expect(total).toBe(1);
+    expect(records[0].item.item_id).toBe("tt7");
+  });
+
+  it("q 仅命中片名时不因导演字段重复计数", async () => {
+    // 「地球」只命中 tt3 片名（流浪地球），导演/演员不含「地球」→ 1 条
+    const { total } = await listRecords(db, { q: "地球" });
+    expect(total).toBe(1);
+  });
+});
+
+describe("listRecords - 组合筛选与排序", () => {
+  it("genre 跨「/」分隔 LIKE 匹配：剧情命中 tt1/tt6/tt8", async () => {
+    const { records, total } = await listRecords(db, { genre: "剧情" });
+    expect(total).toBe(3);
+    const ids = records.map((r) => r.item.item_id).sort();
+    expect(ids).toEqual(["tt1", "tt6", "tt8"]);
+  });
+
+  it("组合排序：sort=douban_rating + order=asc（有评分升序，无评分排末尾）", async () => {
+    const { records } = await listRecords(db, { sort: "douban_rating", order: "asc" });
+    const withRating = records.filter((r) => r.item.douban_rating != null);
+    const withoutRating = records.filter((r) => r.item.douban_rating == null);
+    const asc = [...withRating.map((r) => r.item.douban_rating as number)].sort((a, b) => a - b);
+    expect(withRating.map((r) => r.item.douban_rating)).toEqual(asc);
+    expect(records.slice(records.length - withoutRating.length).map((r) => r.rec_id))
+      .toEqual(expect.arrayContaining(withoutRating.map((r) => r.rec_id)));
+  });
+
+  it("组合排序：sort=tmdb_rating + order=asc 升序且 NULLS LAST", async () => {
+    const { records } = await listRecords(db, { sort: "tmdb_rating", order: "asc" });
+    const withRating = records.filter((r) => r.item.tmdb_rating != null);
+    const asc = [...withRating.map((r) => r.item.tmdb_rating as number)].sort((a, b) => a - b);
+    expect(withRating.map((r) => r.item.tmdb_rating)).toEqual(asc);
+  });
+
+  it("组合筛选：status=watched + sort=douban_rating desc 整体降序", async () => {
+    const { records } = await listRecords(db, {
+      status: "watched",
+      sort: "douban_rating",
+      order: "desc",
+    });
+    // watched 全部有 douban_rating，应严格降序
+    const rated = records.map((r) => r.item.douban_rating as number);
+    expect(rated).toEqual([...rated].sort((a, b) => b - a));
   });
 });
