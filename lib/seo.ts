@@ -2,7 +2,7 @@
 // 统一从 NEXT_PUBLIC_SITE_URL 读取，避免各文件重复处理回退与校验。
 // Read once from NEXT_PUBLIC_SITE_URL so every caller shares the same fallback and validation.
 
-const DEFAULT_SITE_URL = "http://localhost:3000";
+const DEFAULT_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 /**
  * 获取站点公开 URL，用于 metadataBase、canonical、sitemap、robots、JSON-LD。

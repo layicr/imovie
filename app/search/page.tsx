@@ -2,30 +2,44 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import { getSiteUrl } from "@/lib/seo";
+import { getServerLang } from "@/lib/i18n/serverLang";
 import SearchContent from "./SearchContent";
 
 export const dynamic = "force-dynamic";
 
 const siteUrl = getSiteUrl();
 
-export const metadata: Metadata = {
-  title: "搜索",
-  description: "在 iMOVIE 观影记录中搜索电影、剧集，并按类型、国家、年份、状态等维度筛选。",
-  alternates: {
-    canonical: "/search",
-  },
-  robots: {
-    // 搜索结果页通常不希望被索引，避免重复/低质内容
-    // Search result pages usually shouldn't be indexed, to avoid duplicate/low-quality content.
-    index: false,
-    follow: true,
-  },
-  openGraph: {
-    title: "搜索 | iMOVIE",
-    description: "在 iMOVIE 观影记录中搜索电影、剧集。",
-    type: "website",
-  },
-};
+// 动态元数据：按语言选择标题/描述，声明 hreflang（搜索页本身 noindex，hreflang 仅作语言入口标注）。
+// Dynamic metadata: pick title/description by language and declare hreflang (page is noindex; hreflang labels language entries).
+export async function generateMetadata(): Promise<Metadata> {
+  const lang = await getServerLang();
+  const title = lang === "en" ? "Search" : "搜索";
+  const description =
+    lang === "en"
+      ? "Search movies and TV series in your iMOVIE diary; filter by genre, country, year and status."
+      : "在 iMOVIE 观影记录中搜索电影、剧集，并按类型、国家、年份、状态等维度筛选。";
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: "/search",
+      languages: {
+        zh: "/search",
+        en: "/search?lang=en",
+        "x-default": "/search",
+      },
+    },
+    robots: {
+      index: false,
+      follow: true,
+    },
+    openGraph: {
+      title: `${title} | iMOVIE`,
+      description,
+      type: "website",
+    },
+  };
+}
 
 // WebSite + SearchAction JSON-LD（Google 站内搜索框富媒体结果）
 // WebSite + SearchAction JSON-LD (enables Google's sitelinks search box rich result).

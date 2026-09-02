@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { getRecord } from "@/lib/queries";
 import { posterUrl } from "@/lib/poster";
 import { getSiteUrl } from "@/lib/seo";
+import { getServerLang } from "@/lib/i18n/serverLang";
 import { splitMultiValue } from "@/lib/split";
 import type { RecordRow } from "@/lib/types";
 import DetailContent from "./DetailContent";
@@ -38,8 +39,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const { item } = data;
+  const lang = await getServerLang();
   const title = `${item.title}${item.year ? ` (${item.year})` : ""}`;
-  const description = item.overview || `${item.title} 的观影记录与评分。`;
+  // 描述按语言：中文用简介兜底中文句；英文用对应英文兜底句（库里 overview 无英文翻译）。
+  // Description by language: zh falls back to a Chinese sentence; en to an English one (DB overview is untranslated).
+  const description = item.overview
+    ? item.overview
+    : lang === "en"
+      ? `My watch record and rating of ${item.title}.`
+      : `${item.title} 的观影记录与评分。`;
   const image = posterUrl(item.poster_path, item_id);
 
   return {
@@ -47,11 +55,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description,
     alternates: {
       canonical: `/detail/${encodeURIComponent(item_id)}`,
+      languages: {
+        zh: `/detail/${encodeURIComponent(item_id)}`,
+        en: `/detail/${encodeURIComponent(item_id)}?lang=en`,
+        "x-default": `/detail/${encodeURIComponent(item_id)}`,
+      },
     },
     openGraph: {
       title,
       description,
-      type: "video.movie",
+      // 按媒体类型区分 OG 类型：剧集用 video.tv_show，电影用 video.movie
+      // Pick the OG type by media type: TV series -> video.tv_show, movie -> video.movie.
+      type: item.media_type === "tv" ? "video.tv_show" : "video.movie",
       images: image ? [{ url: image, alt: item.title }] : undefined,
     },
     twitter: {
@@ -87,7 +102,9 @@ function buildMovieJsonLd(item: Item, item_id: string) {
     alternativeHeadline: item.original_title || undefined,
     description: item.overview || undefined,
     image: image || undefined,
-    datePublished: item.release_date || undefined,
+    // release_date 可能带地区后缀（如 2023-08-30(中国大陆)），只取前 10 位标准日期
+    // release_date may carry a region suffix; keep only the first 10 chars (standard date).
+    datePublished: item.release_date ? item.release_date.slice(0, 10) : undefined,
     genre: genres,
     duration: item.runtime ? `PT${item.runtime}M` : undefined,
     countryOfOrigin: countries,
@@ -97,13 +114,18 @@ function buildMovieJsonLd(item: Item, item_id: string) {
     url: `${siteUrl}/detail/${encodeURIComponent(item_id)}`,
   };
 
+  // 仅「我」的单条个人评分，用 Review 语义而非 AggregateRating，避免被误判为聚合评分
+  // Only a single personal rating from the owner — use Review semantics, not AggregateRating.
   if (rating != null) {
-    jsonLd.aggregateRating = {
-      "@type": "AggregateRating",
-      ratingValue: rating,
-      bestRating: 10,
-      worstRating: 0,
-      reviewCount: 1,
+    jsonLd.review = {
+      "@type": "Review",
+      author: { "@type": "Person", name: "iMOVIE" },
+      reviewRating: {
+        "@type": "Rating",
+        ratingValue: rating,
+        bestRating: 10,
+        worstRating: 0,
+      },
     };
   }
 

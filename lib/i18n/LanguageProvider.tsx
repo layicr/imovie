@@ -1,8 +1,10 @@
 "use client";
 
 // lib/i18n/LanguageProvider.tsx — 客户端语言上下文。 / Client-side language context.
-// 提供 lang / setLang / t，并负责持久化到 localStorage、同步 <html lang> 与 <title>。
-// Exposes lang / setLang / t, persists to localStorage, and keeps <html lang> and <title> in sync.
+// 提供 lang / setLang / t；语言真相以服务端（cookie，由 middleware 注入）为准，
+// 首屏语言由 SSR 注入（initialLang），保证 SSR 与客户端首帧一致，利于 SEO 与避免 hydration mismatch。
+// Exposes lang / setLang / t; the source of truth is the server (cookie via middleware),
+// and the first paint uses the SSR-injected language to keep SSR and first client frame in sync (SEO + no mismatch).
 
 import {
   createContext,
@@ -12,6 +14,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import { translations, type Lang } from "./translations";
 
 interface LanguageContextValue {
@@ -23,17 +26,22 @@ interface LanguageContextValue {
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 const STORAGE_KEY = "imovie-lang";
+const COOKIE = "imovie-lang";
 
-// 决定初始语言：本地存储优先，其次浏览器语言，最后回退中文。
-// Decide the initial language: localStorage first, then browser language, fallback zh.
-function getInitialLang(): Lang {
+// 把语言写入 cookie（供服务端 / middleware 读取）
+// Persist the language to a cookie for the server / middleware to read.
+function writeLangCookie(l: Lang) {
+  if (typeof document !== "undefined") {
+    document.cookie = `${COOKIE}=${l}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+  }
+}
+
+// 仅客户端回退：读 localStorage 的同名 key（与 SSR 的 cookie 最终保持一致）。
+// Client-only fallback: read the same key from localStorage (kept in sync with the server cookie).
+function readLocalLang(): Lang {
   if (typeof localStorage !== "undefined") {
     const saved = localStorage.getItem(STORAGE_KEY) as Lang | null;
     if (saved === "zh" || saved === "en") return saved;
-  }
-  if (typeof navigator !== "undefined") {
-    const nav = navigator.language?.toLowerCase() || "";
-    if (nav.startsWith("en")) return "en";
   }
   return "zh";
 }
@@ -42,22 +50,29 @@ function getInitialLang(): Lang {
  * 语言上下文 Provider：包裹整个应用，向子树提供 lang / setLang / t。
  * Language context provider: wraps the app and exposes lang / setLang / t to the subtree.
  */
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  // 首屏默认中文，确保 SSR 与客户端首次渲染一致；挂载后再按本地存储/浏览器切换，
-  // 避免 hydration mismatch。
-  // Default to zh on first paint so SSR and the first client render match; switch after mount to avoid hydration mismatch.
-  const [lang, setLangState] = useState<Lang>("zh");
+export function LanguageProvider({
+  children,
+  initialLang = "zh",
+}: {
+  children: ReactNode;
+  initialLang?: Lang;
+}) {
+  // 首屏语言由 SSR 注入（initialLang），保证 SSR 与客户端首帧一致；挂载后再做边缘同步。
+  // First paint uses the SSR-injected language so SSR and first client frame match; edge-sync after mount.
+  const [lang, setLangState] = useState<Lang>(initialLang);
   const [hydrated, setHydrated] = useState(false);
+  const router = useRouter();
 
-  // 读取本地存储（或浏览器语言）决定初始语言
-  // Read localStorage (or browser language) to decide the initial language.
+  // 挂载后：若本地存储与 SSR 值不一致（极少数边缘情况），以本地存储为准同步一次。
+  // After mount: if localStorage disagrees with the SSR value (rare edge case), sync once to localStorage.
   useEffect(() => {
-    setLangState(getInitialLang());
+    const local = readLocalLang();
+    if (local !== initialLang) setLangState(local);
     setHydrated(true);
-  }, []);
+  }, [initialLang]);
 
-  // 语言变化时：持久化 + 同步 <html lang> 与 <title>，利于 SEO / 无障碍 / 标签页标题跟随切换
-  // On language change: persist + sync <html lang> and <title> for SEO / a11y / tab-title follow.
+  // 语言变化：持久化（localStorage + cookie）+ 同步 <html lang> 与 <title>，利于 SEO / 无障碍 / 标签页标题跟随切换。
+  // On change: persist (localStorage + cookie) and sync <html lang> and <title> for SEO / a11y / tab-title follow.
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
@@ -83,7 +98,17 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     [lang]
   );
 
-  const setLang = useCallback((l: Lang) => setLangState(l), []);
+  const setLang = useCallback(
+    (l: Lang) => {
+      setLangState(l);
+      if (typeof localStorage !== "undefined") localStorage.setItem(STORAGE_KEY, l);
+      writeLangCookie(l);
+      // 触发服务端重渲染：更新 <html lang> 与 metadata（title / canonical / hreflang）。
+      // Trigger a server re-render so <html lang> and metadata (title / canonical / hreflang) refresh.
+      router.refresh();
+    },
+    [router]
+  );
 
   return (
     <LanguageContext.Provider value={{ lang, setLang, t }}>

@@ -5,7 +5,8 @@ import { Inter, Bebas_Neue } from "next/font/google";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
-import { translations } from "@/lib/i18n/translations";
+import { translations, type Lang } from "@/lib/i18n/translations";
+import { getServerLang } from "@/lib/i18n/serverLang";
 import FloatingActions from "@/components/FloatingActions";
 import Analytics from "@/components/Analytics";
 import { getSiteUrl } from "@/lib/seo";
@@ -28,53 +29,62 @@ const bebas = Bebas_Neue({
 
 const siteUrl = getSiteUrl();
 
-// 站点标题/描述取自 i18n 字典（translations.zh / translations.en），中英文统一维护，避免硬编码；
-// 当前默认仅输出中文元数据，<html lang> 固定 zh-CN，未提供英文 hreflang 备选（多语言 SEO 待补充）。
-// Site title/description come from the i18n dictionary so zh/en stay in sync and never hard-coded;
-// currently only Chinese metadata is emitted (html lang is fixed to zh-CN, no English hreflang alternates yet).
-export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
-  title: {
-    default: translations.zh["site.title"],
-    template: "%s | iMOVIE",
-  },
-  description: translations.zh["site.description"],
-  keywords: ["观影记录", "电影", "剧集", "movie", "tv", "watchlist"],
-  authors: [{ name: "iMOVIE" }],
-  creator: "iMOVIE",
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
+// 动态元数据：按当前语言选择标题/描述并声明 hreflang 备选（默认指向首页，各页面可覆盖）。
+// Dynamic metadata: pick title/description by language and declare hreflang alternates
+// (defaults to home; child pages may override per-path).
+export async function generateMetadata(): Promise<Metadata> {
+  const lang: Lang = await getServerLang();
+  const dict = translations[lang];
+  return {
+    metadataBase: new URL(siteUrl),
+    title: {
+      default: dict["site.title"],
+      template: "%s | iMOVIE",
+    },
+    description: dict["site.description"],
+    keywords: ["观影记录", "电影", "剧集", "movie", "tv", "watchlist"],
+    authors: [{ name: "iMOVIE" }],
+    creator: "iMOVIE",
+    robots: {
       index: true,
       follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
     },
-  },
-  alternates: {
-    canonical: "/",
-  },
-  openGraph: {
-    title: translations.zh["site.title"],
-    description: translations.zh["site.description"],
-    type: "website",
-    locale: "zh_CN",
-    siteName: "iMOVIE",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: translations.zh["site.title"],
-    description: translations.zh["site.description"],
-  },
-};
+    alternates: {
+      canonical: "/",
+      languages: {
+        zh: "/",
+        en: "/?lang=en",
+        "x-default": "/",
+      },
+    },
+    openGraph: {
+      title: dict["site.title"],
+      description: dict["site.description"],
+      type: "website",
+      locale: lang === "en" ? "en_US" : "zh_CN",
+      siteName: "iMOVIE",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: dict["site.title"],
+      description: dict["site.description"],
+    },
+  };
+}
 
-// 根布局：挂载语言上下文，渲染导航/主内容/页脚/浮动操作/统计脚本。
-// Root layout: mounts the language context and renders nav / main / footer / floating actions / analytics.
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+// 根布局：按服务端语言渲染 <html lang>，挂载语言上下文（注入 SSR 初始语言），渲染外壳。
+// Root layout: sets <html lang> by server language, mounts the language context (SSR initial lang), renders the shell.
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const lang = await getServerLang();
   return (
-    <html lang="zh-CN" className={`${inter.variable} ${bebas.variable}`}>
+    <html lang={lang === "en" ? "en" : "zh-CN"} className={`${inter.variable} ${bebas.variable}`}>
       <head>
         <meta
           name="viewport"
@@ -88,7 +98,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="flex min-h-screen flex-col bg-ink text-white">
-        <LanguageProvider>
+        <LanguageProvider initialLang={lang}>
           <Nav />
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 pt-4">
             {children}
