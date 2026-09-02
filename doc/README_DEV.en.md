@@ -30,7 +30,7 @@ iMOVIE is a self-hosted **read-only** personal movie & TV tracking showcase. Wit
 Browser / Client
    │  HTTP (optional Basic Auth)
    ▼
-proxy.ts       Rate limit (fixed window + approximate LRU eviction) + HTTP Basic Auth + error masking
+proxy.ts       Language resolution (inject x-lang header / write imovie-lang cookie) + Rate limit (fixed window + approximate LRU eviction) + HTTP Basic Auth + error masking
    │
    ▼
 app/               Pages (Server Components query the DB directly) + api/* (Route Handlers)
@@ -150,7 +150,7 @@ Two tables (defined in `data/schema.sql`), **no physical foreign keys, only app-
 - **Dimension cache**: `listFacets` has a module-level 5-minute TTL cache (`facetsCache`) to avoid rescanning on every list request; call `invalidateFacets()` after writes to refresh immediately.
 - **Write isolation**: write logic `ensureItem` / `upsertRecord` is defined only inside `scripts/seed.ts` and is never imported into the app layer, guaranteeing the production runtime is unwritable.
 - **Site protection**: optional Basic Auth (`proxy.ts`) + production CSP / security response headers (`next.config.mjs`): `X-Content-Type-Options` / `X-Frame-Options: DENY` / `Referrer-Policy` / `Permissions-Policy` / `Content-Security-Policy` (includes `img-src` whitelist and `script-src` inline; dev needs `'unsafe-eval'`).
-- **Rate-limit middleware** (`proxy.ts`): under Edge Runtime, uses a module-level `Map` for fixed-window counting, with capacity protection:
+- **proxy.ts responsibilities**: `proxy.ts` replaces `middleware.ts` (Next.js forbids both coexisting; runs on the Node.js runtime). Besides rate limiting, it also handles **language resolution** — reading the language from `?lang=` or the `imovie-lang` cookie, injecting the `x-lang` header (consumed by the SSR `getServerLang()`), and skipping `/api/` requests; its `matcher` already excludes `robots.txt` / `sitemap.xml` so SEO assets stay publicly crawlable even when `SITE_PASSWORD` is set. Rate limiting itself uses a module-level `Map` for fixed-window counting, with capacity protection:
   - Global: `RATE_LIMIT` requests / IP / 60s, `429` on exceed (with `Retry-After`).
   - Auth brute-force protection: `AUTH_FAIL_LIMIT` failures / IP / 60s, `429` on exceed; a successful auth clears that IP's failure counter.
   - Each request also runs `sweep()`: it drops expired buckets, and when the bucket count exceeds `MAX_BUCKETS=2000` it evicts the earliest-to-reset buckets (approximate LRU), preventing an IP storm from exhausting memory.
@@ -245,5 +245,5 @@ lib/           db / queries (read-only) / config / poster / types / validate / a
 data/          schema.sql (table DDL) + local.db (runtime database, not committed)
 scripts/       seed.ts (one-time seed script; contains write functions but never touches the app layer)
 test/          unit / functional / e2e / fixtures (automated tests, see section 8)
-proxy.ts   Rate limit + HTTP Basic Auth + error masking
+proxy.ts  Language resolution (x-lang header / imovie-lang cookie) + Rate limit + HTTP Basic Auth + error masking
 ```

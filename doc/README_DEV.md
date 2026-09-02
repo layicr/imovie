@@ -30,7 +30,7 @@ iMOVIE 是一个自托管的**只读**个人观影记录展示网站，让你以
 浏览器 / 客户端
    │  HTTP（可选 Basic Auth）
    ▼
-proxy.ts       限流（固定窗口 + 近似 LRU 淘汰）+ HTTP Basic 认证 + 错误脱敏
+proxy.ts       语言解析（注入 x-lang 头 / 写 imovie-lang cookie）+ 限流（固定窗口 + 近似 LRU 淘汰）+ HTTP Basic 认证 + 错误脱敏
    │
    ▼
 app/               页面（Server Component 直查库）+ api/*（Route Handler）
@@ -150,7 +150,7 @@ npm run dev          # 启动开发服务器，默认 http://localhost:3000
 - **维度缓存**：`listFacets` 有模块级 5 分钟 TTL 缓存（`facetsCache`），避免每次列表请求重复扫描；写入后调用 `invalidateFacets()` 可立即刷新。
 - **写库隔离**：写入逻辑 `ensureItem` / `upsertRecord` 仅定义在 `scripts/seed.ts` 内，不导入到应用层，保证线上运行态不可写。
 - **站点保护**：可选 Basic Auth（`proxy.ts`）+ 生产 CSP / 安全响应头（`next.config.mjs`）：`X-Content-Type-Options` / `X-Frame-Options: DENY` / `Referrer-Policy` / `Permissions-Policy` / `Content-Security-Policy`（已含 `img-src` 白名单与 `script-src` 内联，dev 需 `'unsafe-eval'`）。
-- **限流中间件**（`proxy.ts`）：Edge Runtime 下用模块级 `Map` 做固定窗口计数，并已加容量防护：
+- **proxy.ts 职责**：`proxy.ts` 是 `middleware.ts` 的替代（Next.js 不允许二者并存，运行于 Node.js 运行时）。除限流外，它还负责**语言解析**——从 `?lang=` 或 `imovie-lang` cookie 取语言、注入 `x-lang` 头（供 SSR 的 `getServerLang()` 使用），并对 `/api/` 请求跳过；其 `matcher` 已排除 `robots.txt` / `sitemap.xml`，确保设密码时 SEO 资源仍公开可抓。限流本身用模块级 `Map` 做固定窗口计数，并已加容量防护：
   - 全局：`RATE_LIMIT` 次 / IP / 60s，超出 `429`（带 `Retry-After`）。
   - 认证防爆破：`AUTH_FAIL_LIMIT` 次 / IP / 60s，超出 `429`；认证成功清空该 IP 失败计数。
   - 每次请求顺带执行 `sweep()`：清理过期桶，并在桶数超过 `MAX_BUCKETS=2000` 时按最早到期（`resetAt`）近似 LRU 淘汰，防止异常 IP 风暴撑爆内存。
@@ -245,5 +245,5 @@ lib/           db / queries（纯只读）/ config / poster / types / validate /
 data/          schema.sql（建表 DDL）+ local.db（运行时实际数据库，不入库）
 scripts/       seed.ts（一次性灌库脚本，内含写库函数，不污染应用层）
 test/          unit / functional / e2e / fixtures（自动化测试，见第八节）
-proxy.ts  限流 + HTTP Basic Auth + 错误脱敏
+proxy.ts  语言解析（x-lang 头 / imovie-lang cookie）+ 限流 + HTTP Basic Auth + 错误脱敏
 ```

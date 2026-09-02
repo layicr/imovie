@@ -88,6 +88,32 @@ function tooMany(remaining: number, resetAt: number, limit: number): NextRespons
   });
 }
 
+const LANG_COOKIE = "imovie-lang";
+const LANG_QUERY = "lang";
+
+// 语言解析：从 ?lang= 或 imovie-lang cookie 取语言，注入 x-lang 头供 SSR 的 getServerLang 读取。
+// 仅对页面请求注入；API 请求跳过，避免给 JSON 响应增加无用头 / 写 cookie。
+// （由原本的 middleware.ts 迁移而来，因 Next.js 不允许 middleware.ts 与 proxy.ts 并存。）
+function withLang(req: NextRequest, res: NextResponse): NextResponse {
+  const url = req.nextUrl;
+  if (url.pathname.startsWith("/api/")) return res;
+
+  const fromQuery = url.searchParams.get(LANG_QUERY);
+  const fromCookie = req.cookies.get(LANG_COOKIE)?.value;
+  const lang = fromQuery === "en" || fromCookie === "en" ? "en" : "zh";
+
+  // 若 URL 带 ?lang= 且与 cookie 不一致，写回 cookie，让分享链接落地后记住选择。
+  if ((fromQuery === "en" || fromQuery === "zh") && fromQuery !== fromCookie) {
+    res.cookies.set(LANG_COOKIE, lang, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: "lax",
+    });
+  }
+  res.headers.set("x-lang", lang);
+  return res;
+}
+
 export function proxy(req: NextRequest) {
   const now = Date.now();
   const ip = clientIp(req);
@@ -101,7 +127,7 @@ export function proxy(req: NextRequest) {
 
   const password = process.env.SITE_PASSWORD;
   if (!password) {
-    return NextResponse.next();
+    return withLang(req, NextResponse.next());
   }
 
   const auth = req.headers.get("authorization");
@@ -114,7 +140,7 @@ export function proxy(req: NextRequest) {
       if (safeEqual(pass, password)) {
         // 认证成功：清除该 IP 的失败计数，避免误伤正常用户
         authFailBuckets.delete(`a:${ip}`);
-        return NextResponse.next();
+        return withLang(req, NextResponse.next());
       }
     }
   }
@@ -135,5 +161,9 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // 排除 API 静态资源、图标，以及 robots.txt / sitemap.xml（SEO 资源须公开可抓，
+  // 即便设置了 SITE_PASSWORD 也不应被 Basic 认证拦截）。
+  // Exclude API static assets, the favicon, and robots.txt / sitemap.xml (SEO assets must
+  // stay publicly crawlable even when SITE_PASSWORD is set, so Basic auth must not block them).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)"],
 };
